@@ -228,19 +228,21 @@
   async function initLiff() {
     try {
       await liff.init({ liffId: LIFF_ID });
-      if (!liff.isLoggedIn()) {
+      if (!liff.isInClient() && !liff.isLoggedIn()) {
         liff.login();
         return;
       }
-      const profile = await liff.getProfile();
-      lineProfile.userId = profile.userId;
-      lineProfile.displayName = profile.displayName;
+      if (liff.isLoggedIn()) {
+        const profile = await liff.getProfile();
+        lineProfile.userId = profile.userId;
+        lineProfile.displayName = profile.displayName;
+      }
     } catch (err) {
       console.error("LIFF init error", err);
     }
   }
   initLiff();
-
+  
   function closeLiff() {
     if (liff.isInClient()) {
       liff.closeWindow();
