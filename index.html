@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>รับเคส Home Ward</title>
+<!-- LINE LIFF SDK -->
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<!-- SweetAlert2 สำหรับแจ้งเตือนแบบโมเดิร์น (ไม่มีชื่อ URL ปรากฏ) -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
   :root {
     --teal: #0f766e;
@@ -86,8 +89,6 @@
   .radio-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--teal); }
   .radio-item label { margin: 0; font-weight: 400; font-size: 14.5px; cursor: pointer; }
 
-  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
-
   button[type="submit"] {
     width: 100%;
     padding: 15px;
@@ -101,8 +102,6 @@
     cursor: pointer;
   }
   button[type="submit"]:disabled { background: #9ca3af; }
-
-  .error-text { color: var(--danger); font-size: 12.5px; margin-top: 5px; display: none; }
 
   /* success screen */
   #successScreen {
@@ -126,6 +125,7 @@
     border-radius: 10px;
     font-size: 15px;
     font-weight: 600;
+    cursor: pointer;
   }
 
   #loadingOverlay {
@@ -161,7 +161,7 @@
 
   <div class="field">
     <label>HN (ระบุตัวเลข 9 หลัก)<span class="req">*</span></label>
-    <input type="text" id="hn" required placeholder="เช่น 000123456" inputmode="numeric" maxlength="9" pattern="\d{9}" title="กรุณากรอกตัวเลข HN ให้ครบ 9 หลัก">
+    <input type="text" id="hn" required placeholder="เช่น 000123456" inputmode="numeric" maxlength="9" pattern="\d{9}">
   </div>
 
   <div class="field">
@@ -220,7 +220,7 @@
     </select>
   </div>
 
-  <!-- ช่องระบุ Ward จะแสดงเมื่อเลือก IPD -->
+  <!-- แสดงเมื่อเลือก IPD -->
   <div class="field" id="wardField" style="display: none;">
     <label>ระบุ Ward<span class="req">*</span></label>
     <input type="text" id="ward" placeholder="เช่น อายุรกรรมชาย 1, ตึก 5 ชั้น 2">
@@ -233,40 +233,40 @@
   <div class="icon">✓</div>
   <h2>ส่งข้อมูลสำเร็จ</h2>
   <p>ทีมงานได้รับข้อมูลเรียบร้อยแล้ว<br>จะดำเนินการติดต่อกลับโดยเร็วที่สุด</p>
-  <button onclick="closeLiff()">ปิดหน้าต่าง</button>
+  <button onclick="closeLiff()">ปิดหน้าต่าง / กรอกเคสใหม่</button>
 </div>
 
 <div id="loadingOverlay"><div class="spinner"></div></div>
 
 <script>
+  // ==================== ตั้งค่าตรงนี้ ====================
   const LIFF_ID = "2011323423-D42WYaU4";
   const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuxVNXyS1ZPAZTNjTOyGffTelQ0ctddFF897lHSR1lipFvbI0KOg_nhsChg90-kAhi/exec";
+  // ==========================================================
 
   let lineProfile = { userId: "", displayName: "" };
 
   async function initLiff() {
     try {
-      await liff.init({ liffId: LIFF_ID });
-      if (!liff.isInClient() && !liff.isLoggedIn()) {
-        liff.login();
-        return;
-      }
-      if (liff.isLoggedIn()) {
-        const profile = await liff.getProfile();
-        lineProfile.userId = profile.userId;
-        lineProfile.displayName = profile.displayName;
+      if (typeof liff !== "undefined" && LIFF_ID) {
+        await liff.init({ liffId: LIFF_ID });
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          lineProfile.userId = profile.userId;
+          lineProfile.displayName = profile.displayName;
+        }
       }
     } catch (err) {
-      console.error("LIFF init error", err);
+      console.log("LIFF Init / Browser mode:", err);
     }
   }
   initLiff();
   
   function closeLiff() {
-    if (liff.isInClient()) {
+    if (typeof liff !== "undefined" && liff.isInClient()) {
       liff.closeWindow();
     } else {
-      window.close();
+      window.location.reload();
     }
   }
 
@@ -277,7 +277,7 @@
   const wardField = document.getElementById("wardField");
   const wardInput = document.getElementById("ward");
 
-  // ตรวจสอบการเลือก Setting เพื่อแสดง/ซ่อนฟิลด์ Ward
+  // จัดการการแสดง/ซ่อนช่องระบุ Ward เมื่อเลือก IPD
   settingSelect.addEventListener("change", (e) => {
     if (e.target.value === "IPD") {
       wardField.style.display = "block";
@@ -295,27 +295,45 @@
     // 1. ตรวจสอบสิทธิ์การรักษา (ต้องเป็นบัตรทอง (UC) เท่านั้น)
     const rightsVal = document.getElementById("rights").value;
     if (rightsVal !== "บัตรทอง (UC)") {
-      alert("ผู้ป่วยที่สามารถเข้ารับบริการนี้ต้องเป็นสิทธิ์ UC เท่านั้น");
+      Swal.fire({
+        icon: 'warning',
+        title: 'แจ้งเตือนสิทธิ์การรักษา',
+        text: 'ผู้ป่วยที่สามารถเข้ารับบริการนี้ต้องเป็นสิทธิ์ UC เท่านั้น',
+        confirmButtonColor: '#0f766e',
+        confirmButtonText: 'รับทราบ'
+      });
       return;
     }
 
-    // 2. ตรวจสอบ HN 9 หลัก
+    // 2. ตรวจสอบ HN ให้ครบ 9 หลัก
     const hnVal = document.getElementById("hn").value.trim();
     if (!/^\d{9}$/.test(hnVal)) {
-      alert("กรุณากรอกเลข HN ให้เป็นตัวเลขครบ 9 หลัก");
+      Swal.fire({
+        icon: 'warning',
+        title: 'เลข HN ไม่ถูกต้อง',
+        text: 'กรุณากรอกเลข HN ให้เป็นตัวเลขครบ 9 หลัก',
+        confirmButtonColor: '#0f766e',
+        confirmButtonText: 'ตกลง'
+      });
       return;
     }
 
-    // 3. ตรวจสอบ Indication (เลือก 1 ข้อ)
+    // 3. ตรวจสอบข้อบ่งชี้
     const selectedIndication = document.querySelector('input[name="indication"]:checked');
     if (!selectedIndication) {
-      alert("กรุณาเลือกข้อบ่งชี้ 1 ข้อ");
+      Swal.fire({
+        icon: 'warning',
+        title: 'ข้อมูลไม่ครบถ้วน',
+        text: 'กรุณาเลือกข้อบ่งชี้ 1 ข้อ',
+        confirmButtonColor: '#0f766e',
+        confirmButtonText: 'ตกลง'
+      });
       return;
     }
 
     const payload = {
-      userId: lineProfile.userId,
-      displayName: lineProfile.displayName,
+      userId: lineProfile.userId || "",
+      displayName: lineProfile.displayName || "Web Browser",
       fullName: document.getElementById("fullName").value.trim(),
       hn: hnVal,
       age: document.getElementById("age").value,
@@ -340,7 +358,13 @@
       document.getElementById("successScreen").style.display = "block";
     } catch (err) {
       console.error("Submit error", err);
-      alert("ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: '#0f766e',
+        confirmButtonText: 'ตกลง'
+      });
       submitBtn.disabled = false;
     } finally {
       loadingOverlay.style.display = "none";
