@@ -67,7 +67,7 @@
     background-size: 18px;
   }
 
-  .checkbox-group {
+  .radio-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -76,14 +76,15 @@
     border-radius: 10px;
     padding: 6px;
   }
-  .checkbox-item {
+  .radio-item {
     display: flex;
     align-items: center;
     padding: 8px 10px;
     border-radius: 8px;
+    cursor: pointer;
   }
-  .checkbox-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--teal); }
-  .checkbox-item label { margin: 0; font-weight: 400; font-size: 14.5px; }
+  .radio-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--teal); }
+  .radio-item label { margin: 0; font-weight: 400; font-size: 14.5px; cursor: pointer; }
 
   .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
 
@@ -159,8 +160,8 @@
   </div>
 
   <div class="field">
-    <label>HN<span class="req">*</span></label>
-    <input type="text" id="hn" required placeholder="เช่น 000123456" inputmode="numeric">
+    <label>HN (ระบุตัวเลข 9 หลัก)<span class="req">*</span></label>
+    <input type="text" id="hn" required placeholder="เช่น 000123456" inputmode="numeric" maxlength="9" pattern="\d{9}" title="กรุณากรอกตัวเลข HN ให้ครบ 9 หลัก">
   </div>
 
   <div class="field">
@@ -179,15 +180,29 @@
   </div>
 
   <div class="field">
-    <label>ข้อบ่งชี้<span class="req">*</span></label>
-    <div class="checkbox-group" id="indicationsGroup">
-      <div class="checkbox-item"><input type="checkbox" id="ind1" value="Pressure injury"><label for="ind1">Pressure injury</label></div>
-      <div class="checkbox-item"><input type="checkbox" id="ind2" value="UTI"><label for="ind2">UTI</label></div>
-      <div class="checkbox-item"><input type="checkbox" id="ind3" value="Pneumonia"><label for="ind3">Pneumonia</label></div>
-      <div class="checkbox-item"><input type="checkbox" id="ind4" value="COVID"><label for="ind4">COVID</label></div>
-      <div class="checkbox-item"><input type="checkbox" id="ind5" value="Active dying"><label for="ind5">Active dying</label></div>
+    <label>ข้อบ่งชี้ (เลือก 1 ข้อ)<span class="req">*</span></label>
+    <div class="radio-group" id="indicationsGroup">
+      <div class="radio-item">
+        <input type="radio" name="indication" id="ind1" value="Pressure injury" required>
+        <label for="ind1">Pressure injury</label>
+      </div>
+      <div class="radio-item">
+        <input type="radio" name="indication" id="ind2" value="UTI">
+        <label for="ind2">UTI</label>
+      </div>
+      <div class="radio-item">
+        <input type="radio" name="indication" id="ind3" value="Pneumonia">
+        <label for="ind3">Pneumonia</label>
+      </div>
+      <div class="radio-item">
+        <input type="radio" name="indication" id="ind4" value="COVID">
+        <label for="ind4">COVID</label>
+      </div>
+      <div class="radio-item">
+        <input type="radio" name="indication" id="ind5" value="Active dying">
+        <label for="ind5">Active dying</label>
+      </div>
     </div>
-    <div class="error-text" id="indError">กรุณาเลือกอย่างน้อย 1 ข้อบ่งชี้</div>
   </div>
 
   <div class="field">
@@ -205,6 +220,12 @@
     </select>
   </div>
 
+  <!-- ช่องระบุ Ward จะแสดงเมื่อเลือก IPD -->
+  <div class="field" id="wardField" style="display: none;">
+    <label>ระบุ Ward<span class="req">*</span></label>
+    <input type="text" id="ward" placeholder="เช่น อายุรกรรมชาย 1, ตึก 5 ชั้น 2">
+  </div>
+
   <button type="submit" id="submitBtn">ส่งข้อมูล</button>
 </form>
 
@@ -218,10 +239,8 @@
 <div id="loadingOverlay"><div class="spinner"></div></div>
 
 <script>
-  // ==================== ตั้งค่าตรงนี้ ====================
-  const LIFF_ID = "2011323423-D42WYaU4"; // ใส่ LIFF ID ของคุณ
-  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxyv9xQRKTXnX1ImhHQiW_U_YKsvvirjGvY0BjkF78l5UtCIXo8wFv1aj4I6E-S4_ny/exec"; // ใส่ URL ที่ได้จากการ Deploy Apps Script
-  // ==========================================================
+  const LIFF_ID = "2011323423-D42WYaU4";
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxyv9xQRKTXnX1ImhHQiW_U_YKsvvirjGvY0BjkF78l5UtCIXo8wFv1aj4I6E-S4_ny/exec";
 
   let lineProfile = { userId: "", displayName: "" };
 
@@ -254,38 +273,63 @@
   const form = document.getElementById("caseForm");
   const submitBtn = document.getElementById("submitBtn");
   const loadingOverlay = document.getElementById("loadingOverlay");
-  const indError = document.getElementById("indError");
+  const settingSelect = document.getElementById("setting");
+  const wardField = document.getElementById("wardField");
+  const wardInput = document.getElementById("ward");
+
+  // ตรวจสอบการเลือก Setting เพื่อแสดง/ซ่อนฟิลด์ Ward
+  settingSelect.addEventListener("change", (e) => {
+    if (e.target.value === "IPD") {
+      wardField.style.display = "block";
+      wardInput.required = true;
+    } else {
+      wardField.style.display = "none";
+      wardInput.required = false;
+      wardInput.value = "";
+    }
+  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const indications = Array.from(
-      document.querySelectorAll('#indicationsGroup input[type="checkbox"]:checked')
-    ).map(cb => cb.value);
-
-    if (indications.length === 0) {
-      indError.style.display = "block";
+    // 1. ตรวจสอบสิทธิ์การรักษา (ต้องเป็นบัตรทอง (UC) เท่านั้น)
+    const rightsVal = document.getElementById("rights").value;
+    if (rightsVal !== "บัตรทอง (UC)") {
+      alert("ผู้ป่วยที่สามารถเข้ารับบริการนี้ต้องเป็นสิทธิ์ UC เท่านั้น");
       return;
     }
-    indError.style.display = "none";
+
+    // 2. ตรวจสอบ HN 9 หลัก
+    const hnVal = document.getElementById("hn").value.trim();
+    if (!/^\d{9}$/.test(hnVal)) {
+      alert("กรุณากรอกเลข HN ให้เป็นตัวเลขครบ 9 หลัก");
+      return;
+    }
+
+    // 3. ตรวจสอบ Indication (เลือก 1 ข้อ)
+    const selectedIndication = document.querySelector('input[name="indication"]:checked');
+    if (!selectedIndication) {
+      alert("กรุณาเลือกข้อบ่งชี้ 1 ข้อ");
+      return;
+    }
 
     const payload = {
       userId: lineProfile.userId,
       displayName: lineProfile.displayName,
       fullName: document.getElementById("fullName").value.trim(),
-      hn: document.getElementById("hn").value.trim(),
+      hn: hnVal,
       age: document.getElementById("age").value,
-      rights: document.getElementById("rights").value,
-      indications: indications,
+      rights: rightsVal,
+      indication: selectedIndication.value,
       phone: document.getElementById("phone").value.trim(),
-      setting: document.getElementById("setting").value
+      setting: settingSelect.value,
+      ward: settingSelect.value === "IPD" ? wardInput.value.trim() : ""
     };
 
     submitBtn.disabled = true;
     loadingOverlay.style.display = "flex";
 
     try {
-      // ใช้ text/plain เพื่อเลี่ยงปัญหา CORS preflight กับ Google Apps Script
       await fetch(GAS_WEB_APP_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
