@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>รับเคส Home Ward</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --teal: #0f766e;
+    --teal-dark: #0b5a54;
+    --green: #166534;
+    --bg: #f4f7f6;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e2e8e6;
+    --danger: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 32px;
+  }
+  header {
+    background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+    color: #fff;
+    padding: 20px 20px 24px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 700; }
+  header p { margin: 0; font-size: 13px; opacity: .9; }
+
+  form { padding: 16px; max-width: 480px; margin: 0 auto; }
+
+  .field { margin-bottom: 16px; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  label .req { color: var(--danger); margin-left: 2px; }
+
+  input[type="text"], input[type="tel"], input[type="number"], select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: var(--card);
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--teal);
+  }
+  select {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%236b7280"><path d="M5.5 7.5l4.5 5 4.5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 18px;
+  }
+
+  .checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .checkbox-item input { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--teal); }
+  .checkbox-item label { margin: 0; font-weight: 400; font-size: 14.5px; }
+
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+  button[type="submit"] {
+    width: 100%;
+    padding: 15px;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 8px;
+    cursor: pointer;
+  }
+  button[type="submit"]:disabled { background: #9ca3af; }
+
+  .error-text { color: var(--danger); font-size: 12.5px; margin-top: 5px; display: none; }
+
+  /* success screen */
+  #successScreen {
+    display: none;
+    padding: 40px 24px;
+    text-align: center;
+  }
+  #successScreen .icon {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--green); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin: 0 auto 16px;
+  }
+  #successScreen h2 { margin: 0 0 8px; font-size: 18px; }
+  #successScreen p { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  #successScreen button {
+    padding: 12px 28px;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  #loadingOverlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,.85);
+    align-items: center; justify-content: center;
+    flex-direction: column;
+    z-index: 50;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 แบบฟอร์มรับเคส Home Ward</h1>
+  <p>กรอกข้อมูลผู้ป่วยเพื่อส่งเข้าระบบ</p>
+</header>
+
+<form id="caseForm">
+  <div class="field">
+    <label>ชื่อ-นามสกุลผู้ป่วย<span class="req">*</span></label>
+    <input type="text" id="fullName" required placeholder="เช่น นายสมชาย ใจดี">
+  </div>
+
+  <div class="field">
+    <label>HN<span class="req">*</span></label>
+    <input type="text" id="hn" required placeholder="เช่น 000123456" inputmode="numeric">
+  </div>
+
+  <div class="field">
+    <label>อายุ (ปี)<span class="req">*</span></label>
+    <input type="number" id="age" required min="0" max="130" placeholder="เช่น 72">
+  </div>
+
+  <div class="field">
+    <label>สิทธิ์การรักษา<span class="req">*</span></label>
+    <select id="rights" required>
+      <option value="" disabled selected>เลือกสิทธิ์การรักษา</option>
+      <option value="บัตรทอง (UC)">บัตรทอง (UC)</option>
+      <option value="ประกันสังคม">ประกันสังคม</option>
+      <option value="เบิกตรงข้าราชการ">เบิกตรงข้าราชการ</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>ข้อบ่งชี้<span class="req">*</span></label>
+    <div class="checkbox-group" id="indicationsGroup">
+      <div class="checkbox-item"><input type="checkbox" id="ind1" value="Pressure injury"><label for="ind1">Pressure injury</label></div>
+      <div class="checkbox-item"><input type="checkbox" id="ind2" value="UTI"><label for="ind2">UTI</label></div>
+      <div class="checkbox-item"><input type="checkbox" id="ind3" value="Pneumonia"><label for="ind3">Pneumonia</label></div>
+      <div class="checkbox-item"><input type="checkbox" id="ind4" value="COVID"><label for="ind4">COVID</label></div>
+      <div class="checkbox-item"><input type="checkbox" id="ind5" value="Active dying"><label for="ind5">Active dying</label></div>
+    </div>
+    <div class="error-text" id="indError">กรุณาเลือกอย่างน้อย 1 ข้อบ่งชี้</div>
+  </div>
+
+  <div class="field">
+    <label>เบอร์โทรติดต่อผู้ป่วย/ญาติ<span class="req">*</span></label>
+    <input type="tel" id="phone" required placeholder="เช่น 08X-XXX-XXXX" inputmode="tel">
+  </div>
+
+  <div class="field">
+    <label>ส่งต่อจากหน่วยบริการ<span class="req">*</span></label>
+    <select id="setting" required>
+      <option value="" disabled selected>เลือก Setting</option>
+      <option value="OPD">OPD</option>
+      <option value="IPD">IPD</option>
+      <option value="ER">ER</option>
+    </select>
+  </div>
+
+  <button type="submit" id="submitBtn">ส่งข้อมูล</button>
+</form>
+
+<div id="successScreen">
+  <div class="icon">✓</div>
+  <h2>ส่งข้อมูลสำเร็จ</h2>
+  <p>ทีมงานได้รับข้อมูลเรียบร้อยแล้ว<br>จะดำเนินการติดต่อกลับโดยเร็วที่สุด</p>
+  <button onclick="closeLiff()">ปิดหน้าต่าง</button>
+</div>
+
+<div id="loadingOverlay"><div class="spinner"></div></div>
+
+<script>
+  // ==================== ตั้งค่าตรงนี้ ====================
+  const LIFF_ID = "2011323423-D42WYaU4"; // ใส่ LIFF ID ของคุณ
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycby8TKT4DbaHZZyZQ_EuUyDd2r0kmb5K3YfjKSp1InBjoiC_-X1Ink09qn2BzgnFgqom/exec"; // ใส่ URL ที่ได้จากการ Deploy Apps Script
+  // ==========================================================
+
+  let lineProfile = { userId: "", displayName: "" };
+
+  async function initLiff() {
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+      const profile = await liff.getProfile();
+      lineProfile.userId = profile.userId;
+      lineProfile.displayName = profile.displayName;
+    } catch (err) {
+      console.error("LIFF init error", err);
+    }
+  }
+  initLiff();
+
+  function closeLiff() {
+    if (liff.isInClient()) {
+      liff.closeWindow();
+    } else {
+      window.close();
+    }
+  }
+
+  const form = document.getElementById("caseForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  const indError = document.getElementById("indError");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const indications = Array.from(
+      document.querySelectorAll('#indicationsGroup input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+
+    if (indications.length === 0) {
+      indError.style.display = "block";
+      return;
+    }
+    indError.style.display = "none";
+
+    const payload = {
+      userId: lineProfile.userId,
+      displayName: lineProfile.displayName,
+      fullName: document.getElementById("fullName").value.trim(),
+      hn: document.getElementById("hn").value.trim(),
+      age: document.getElementById("age").value,
+      rights: document.getElementById("rights").value,
+      indications: indications,
+      phone: document.getElementById("phone").value.trim(),
+      setting: document.getElementById("setting").value
+    };
+
+    submitBtn.disabled = true;
+    loadingOverlay.style.display = "flex";
+
+    try {
+      // ใช้ text/plain เพื่อเลี่ยงปัญหา CORS preflight กับ Google Apps Script
+      await fetch(GAS_WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+
+      form.style.display = "none";
+      document.getElementById("successScreen").style.display = "block";
+    } catch (err) {
+      console.error("Submit error", err);
+      alert("ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      submitBtn.disabled = false;
+    } finally {
+      loadingOverlay.style.display = "none";
+    }
+  });
+</script>
+
+</body>
+</html>
