@@ -39,7 +39,7 @@
     line-height: 1.4;
   }
 
-  /* Header กระชับ */
+  /* Header */
   .app-header {
     background: linear-gradient(135deg, #0284c7, #0f766e);
     color: #ffffff;
@@ -200,7 +200,7 @@
     line-height: 1.5;
   }
 
-  /* ==================== Camera Modal (สัดส่วน 4:1) ==================== */
+  /* ==================== Camera Modal (สัดส่วนใหม่ 2.4:1) ==================== */
   #cameraModal {
     display: none;
     position: fixed;
@@ -248,32 +248,32 @@
     object-fit: cover;
   }
 
-  /* กรอบเล็งสัดส่วน 4:1 ตามใบนำทางผู้ป่วยนอก */
+  /* ปรับสัดส่วนตามหัวใบนำทางผู้ป่วยนอกจริง (2.4 : 1) */
   .guide-box {
     position: absolute;
-    width: 92%;
+    width: 90%;
     max-width: 440px;
-    aspect-ratio: 4 / 1;
+    aspect-ratio: 2.4 / 1;
     border: 2px solid rgba(255, 255, 255, 0.9);
-    border-radius: 8px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
     pointer-events: none;
   }
   .guide-corner {
     position: absolute;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-color: #38bdf8;
     border-style: solid;
   }
-  .top-left { top: -2px; left: -2px; border-width: 3.5px 0 0 3.5px; border-top-left-radius: 8px; }
-  .top-right { top: -2px; right: -2px; border-width: 3.5px 3.5px 0 0; border-top-right-radius: 8px; }
-  .bottom-left { bottom: -2px; left: -2px; border-width: 0 0 3.5px 3.5px; border-bottom-left-radius: 8px; }
-  .bottom-right { bottom: -2px; right: -2px; border-width: 0 3.5px 3.5px 0; border-bottom-right-radius: 8px; }
+  .top-left { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-top-left-radius: 10px; }
+  .top-right { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-top-right-radius: 10px; }
+  .bottom-left { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-bottom-left-radius: 10px; }
+  .bottom-right { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-bottom-right-radius: 10px; }
 
   .guide-instruction {
     position: absolute;
-    bottom: -30px;
+    bottom: -32px;
     width: 100%;
     text-align: center;
     color: #ffffff;
@@ -353,20 +353,20 @@
 <body>
 
 <header class="app-header">
-  <h1>📋 ระบบ Admit Home Ward รพ.สุโขทัย</h1>
+  <h1>📋 ส่งผู้ป่วยเข้าสู่ Home Ward</h1>
   <p>กรอกข้อมูลหรือถ่ายภาพใบนำทางผู้ป่วยเพื่อส่งต่อเคส</p>
 </header>
 
 <div class="form-container">
   <form id="caseForm">
 
-    <!-- ถ่ายภาพใบนำทาง / OPD Card -->
+    <!-- ถ่ายภาพใบนำทาง -->
     <div class="card-section" style="padding: 6px;">
       <div class="scanner-card" id="openScannerBtn">
         <div class="scanner-icon">📸</div>
         <div class="scanner-text-group">
           <div class="scanner-title">ถ่ายภาพใบนำทาง / สติกเกอร์ผู้ป่วย</div>
-          <div class="scanner-sub">ระบบจะอ่าน HN, ชื่อ, อายุ, สิทธิ์ เติมให้อัตโนมัติ</div>
+          <div class="scanner-sub">ระบบจะอ่าน HN, ชื่อ, อายุ, เบอร์โทร เติมให้อัตโนมัติ</div>
         </div>
       </div>
       <input type="file" id="fallbackFileInput" accept="image/*" style="display:none;">
@@ -382,24 +382,23 @@
       <div class="field-row">
         <div class="field">
           <label>HN (9 หลัก)<span class="req">*</span></label>
-          <input type="text" id="hn" required placeholder="000123456" inputmode="numeric" maxlength="9" pattern="\d{9}">
+          <input type="text" id="hn" required placeholder="000189452" inputmode="numeric" maxlength="9" pattern="\d{9}">
         </div>
         <div class="field">
           <label>อายุ (ปี)<span class="req">*</span></label>
-          <input type="number" id="age" required min="0" max="130" placeholder="เช่น 65">
+          <input type="number" id="age" required min="0" max="130" placeholder="เช่น 55">
         </div>
       </div>
 
+      <!-- สิทธิ์การรักษา บังคับเฉพาะบัตรทอง UC -->
       <div class="field">
         <label>สิทธิ์การรักษา<span class="req">*</span></label>
         <select id="rights" required>
           <option value="" disabled selected>เลือกสิทธิ์การรักษา</option>
           <option value="บัตรทอง (UC)">บัตรทอง (UC)</option>
-          <option value="UC นอกเขต (ที่ไม่ใช่ รพ.สท.)">UC นอกเขต (ที่ไม่ใช่ รพ.สท.)</option>
+          <option value="ชำระเงินเอง">ชำระเงินเอง</option>
           <option value="ประกันสังคม">ประกันสังคม</option>
           <option value="เบิกตรงข้าราชการ">เบิกตรงข้าราชการ</option>
-          <option value="ประกันชีวิต/ประกันสุขภาพ">ประกันชีวิต/ประกันสุขภาพ</option>
-          <option value="ชำระเงินเอง">ชำระเงินเอง</option>
           <option value="อื่นๆ">อื่นๆ</option>
         </select>
       </div>
@@ -457,17 +456,16 @@
 
     <button type="submit" id="submitBtn" class="submit-btn">บันทึกและส่งข้อมูล</button>
 
-    <!-- Footnote ส่วนท้าย -->
     <div class="app-footnote">
       โดย กลุ่มงานพยาบาลชุมชน & แพทย์เวชศาสตร์ครอบครัว รพ.สุโขทัย
     </div>
   </form>
 </div>
 
-<!-- Modal กล้องถ่ายภาพพร้อมกรอบเล็ง -->
+<!-- Modal กล้องพร้อมกรอบเล็ง 2.4:1 -->
 <div id="cameraModal">
   <div class="camera-header">
-    <div class="camera-header-title">จัดตำแหน่งแถบหัวกระดาษให้อยู่ในกรอบ</div>
+    <div class="camera-header-title">จัดตำแหน่งแถบข้อมูลหัวกระดาษให้อยู่ในกรอบ</div>
     <button type="button" class="camera-close-btn" id="closeCameraBtn">✕</button>
   </div>
 
@@ -478,7 +476,7 @@
       <div class="guide-corner top-right"></div>
       <div class="guide-corner bottom-left"></div>
       <div class="guide-corner bottom-right"></div>
-      <div class="guide-instruction">เล็งเฉพาะแถบหัวกระดาษ (ชื่อ, HN, สิทธิ์)</div>
+      <div class="guide-instruction">เล็งแถบข้อมูล (HN, ชื่อ, สิทธิ์, ที่อยู่, เบอร์โทร)</div>
     </div>
   </div>
 
@@ -489,7 +487,7 @@
 
 <canvas id="cropCanvas" style="display:none;"></canvas>
 
-<!-- หน้าต่างเมื่อส่งสำเร็จ -->
+<!-- หน้าต่างสำเร็จ -->
 <div id="successScreen">
   <div class="success-icon">✓</div>
   <h2 style="font-size: 18px; margin: 0 0 6px;">ส่งข้อมูลสำเร็จ</h2>
@@ -500,7 +498,7 @@
   </div>
 </div>
 
-<!-- หน้าต่าง Loading -->
+<!-- Loading Overlay -->
 <div id="loadingOverlay">
   <div class="loading-card">
     <div class="spinner"></div>
@@ -510,7 +508,7 @@
 
 <script>
   const LIFF_ID = "2011323423-D42WYaU4";
-  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxvj7e3d6I7-SmM7JZ63ODOglhPpSaO11c3CrvUDnoXqf5eyKjygW9U0ocvPHZk9Zie/exec";
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxD_gGHWszR_vjIv3-mfl4yoMrcY2abFaoEf0AhX6ZXpWBTxUEsoTj6p1_vRwgeiiGE/exec";
 
   let lineProfile = { userId: "", displayName: "" };
   let mediaStream = null;
@@ -546,6 +544,7 @@
   const settingSelect = document.getElementById("setting");
   const wardField = document.getElementById("wardField");
   const wardInput = document.getElementById("ward");
+  const rightsSelect = document.getElementById("rights");
 
   const openScannerBtn = document.getElementById("openScannerBtn");
   const fallbackFileInput = document.getElementById("fallbackFileInput");
@@ -555,6 +554,25 @@
   const shutterBtn = document.getElementById("shutterBtn");
   const guideBox = document.getElementById("guideBox");
   const cropCanvas = document.getElementById("cropCanvas");
+
+  // ฟังก์ชันแจ้งเตือนสิทธิ์บัตรทอง
+  function alertUCOnly() {
+    Swal.fire({
+      icon: 'warning',
+      title: 'แจ้งเตือนสิทธิ์การรักษา',
+      text: 'เฉพาะผู้ป่วยสิทธิ์ บัตรทอง รพ.สท. เท่านั้น',
+      confirmButtonColor: '#0284c7',
+      confirmButtonText: 'ตกลง'
+    });
+  }
+
+  // ดักตรวจทันทีเมื่อมีการเปลี่ยนสิทธิ์ใน Dropdown
+  rightsSelect.addEventListener("change", (e) => {
+    if (e.target.value !== "บัตรทอง (UC)") {
+      alertUCOnly();
+      e.target.value = ""; // รีเซ็ตให้เลือกใหม่
+    }
+  });
 
   // แสดง/ซ่อน ช่อง Ward
   settingSelect.addEventListener("change", (e) => {
@@ -588,7 +606,7 @@
       cameraVideo.srcObject = mediaStream;
       cameraModal.style.display = "flex";
     } catch (err) {
-      console.warn("เข้าถึงกล้องสดไม่ได้ ใช้ตัวอัปโหลดแทน:", err);
+      console.warn("เข้าถึงกล้องไม่ได้ ใช้ File Upload แทน:", err);
       fallbackFileInput.click();
     }
   });
@@ -603,7 +621,7 @@
 
   closeCameraBtn.addEventListener("click", stopCamera);
 
-  // ตัดภาพตามกรอบเล็ง 4:1
+  // ตัดภาพตามกรอบเล็ง 2.4:1
   shutterBtn.addEventListener("click", () => {
     const video = cameraVideo;
     if (!video.videoWidth || !video.videoHeight) return;
@@ -678,20 +696,30 @@
           document.getElementById("age").value = extracted.age;
           filledCount++;
         }
-        if (extracted.rights) {
-          document.getElementById("rights").value = extracted.rights;
-          filledCount++;
-        }
         if (extracted.phone) {
           document.getElementById("phone").value = extracted.phone;
           filledCount++;
         }
 
-        if (filledCount > 0) {
+        // ตรวจสอบสิทธิ์จากการสแกนภาพ
+        let isNonUC = false;
+        if (extracted.rights) {
+          if (extracted.rights === "บัตรทอง (UC)") {
+            rightsSelect.value = "บัตรทอง (UC)";
+            filledCount++;
+          } else {
+            isNonUC = true;
+            rightsSelect.value = ""; // ไม่เลือกให้
+          }
+        }
+
+        if (isNonUC) {
+          alertUCOnly();
+        } else if (filledCount > 0) {
           Swal.fire({
             icon: 'success',
             title: 'ดึงข้อมูลสำเร็จ',
-            text: 'ระบบเติมข้อมูลให้เรียบร้อย กรุณาตรวจทานความถูกต้อง',
+            text: 'ระบบเติมข้อมูลจากใบนำทางให้เรียบร้อย กรุณาตรวจทานความถูกต้อง',
             confirmButtonColor: '#0284c7',
             confirmButtonText: 'ตกลง'
           });
@@ -725,15 +753,10 @@
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const rightsVal = document.getElementById("rights").value;
-    if (!rightsVal) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'ข้อมูลไม่ครบถ้วน',
-        text: 'กรุณาเลือกสิทธิ์การรักษาของผู้ป่วย',
-        confirmButtonColor: '#0284c7',
-        confirmButtonText: 'ตกลง'
-      });
+    // ตรวจสอบสิทธิ์การรักษา ต้องเป็น บัตรทอง (UC) เท่านั้น
+    const rightsVal = rightsSelect.value;
+    if (rightsVal !== "บัตรทอง (UC)") {
+      alertUCOnly();
       return;
     }
 
