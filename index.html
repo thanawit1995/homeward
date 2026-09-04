@@ -200,7 +200,7 @@
     line-height: 1.5;
   }
 
-  /* ==================== Camera Modal (สัดส่วนใหม่ 2.4:1) ==================== */
+  /* ==================== Camera Modal (สัดส่วน 4:3 ครอบคลุมทั้งใบ) ==================== */
   #cameraModal {
     display: none;
     position: fixed;
@@ -248,14 +248,14 @@
     object-fit: cover;
   }
 
-  /* ปรับสัดส่วนตามหัวใบนำทางผู้ป่วยนอกจริง (2.4 : 1) */
+  /* ปรับกรอบเล็งเป็นสัดส่วน 4:3 ให้ครอบคลุมใบ OPD card ทั้งแผ่น */
   .guide-box {
     position: absolute;
     width: 90%;
-    max-width: 440px;
-    aspect-ratio: 2.4 / 1;
+    max-width: 420px;
+    aspect-ratio: 4 / 3;
     border: 2px solid rgba(255, 255, 255, 0.9);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
     pointer-events: none;
   }
@@ -266,10 +266,10 @@
     border-color: #38bdf8;
     border-style: solid;
   }
-  .top-left { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-top-left-radius: 10px; }
-  .top-right { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-top-right-radius: 10px; }
-  .bottom-left { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-bottom-left-radius: 10px; }
-  .bottom-right { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-bottom-right-radius: 10px; }
+  .top-left { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-top-left-radius: 12px; }
+  .top-right { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-top-right-radius: 12px; }
+  .bottom-left { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-bottom-left-radius: 12px; }
+  .bottom-right { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-bottom-right-radius: 12px; }
 
   .guide-instruction {
     position: absolute;
@@ -353,7 +353,7 @@
 <body>
 
 <header class="app-header">
-  <h1>📋 ส่งผู้ป่วยเข้าสู่ Home Ward</h1>
+  <h1>📋 ระบบ Admit Home Ward รพ.สุโขทัย</h1>
   <p>กรอกข้อมูลหรือถ่ายภาพใบนำทางผู้ป่วยเพื่อส่งต่อเคส</p>
 </header>
 
@@ -365,7 +365,7 @@
       <div class="scanner-card" id="openScannerBtn">
         <div class="scanner-icon">📸</div>
         <div class="scanner-text-group">
-          <div class="scanner-title">ถ่ายภาพใบนำทาง / สติกเกอร์ผู้ป่วย</div>
+          <div class="scanner-title">ถ่ายภาพใบนำทาง / OPD Card</div>
           <div class="scanner-sub">ระบบจะอ่าน HN, ชื่อ, อายุ, เบอร์โทร เติมให้อัตโนมัติ</div>
         </div>
       </div>
@@ -390,7 +390,7 @@
         </div>
       </div>
 
-      <!-- สิทธิ์การรักษา บังคับเฉพาะบัตรทอง UC -->
+      <!-- สิทธิ์การรักษา คัดกรองเฉพาะบัตรทอง UC -->
       <div class="field">
         <label>สิทธิ์การรักษา<span class="req">*</span></label>
         <select id="rights" required>
@@ -462,10 +462,10 @@
   </form>
 </div>
 
-<!-- Modal กล้องพร้อมกรอบเล็ง 2.4:1 -->
+<!-- Modal กล้องพร้อมกรอบเล็ง 4:3 -->
 <div id="cameraModal">
   <div class="camera-header">
-    <div class="camera-header-title">จัดตำแหน่งแถบข้อมูลหัวกระดาษให้อยู่ในกรอบ</div>
+    <div class="camera-header-title">จัดวางใบ OPD Card ให้อยู่ในกรอบ</div>
     <button type="button" class="camera-close-btn" id="closeCameraBtn">✕</button>
   </div>
 
@@ -476,7 +476,7 @@
       <div class="guide-corner top-right"></div>
       <div class="guide-corner bottom-left"></div>
       <div class="guide-corner bottom-right"></div>
-      <div class="guide-instruction">เล็งแถบข้อมูล (HN, ชื่อ, สิทธิ์, ที่อยู่, เบอร์โทร)</div>
+      <div class="guide-instruction">จัดวางเอกสารให้อยู่ในกรอบ 4:3</div>
     </div>
   </div>
 
@@ -487,7 +487,7 @@
 
 <canvas id="cropCanvas" style="display:none;"></canvas>
 
-<!-- หน้าต่างสำเร็จ -->
+<!-- หน้าต่างเมื่อส่งสำเร็จ -->
 <div id="successScreen">
   <div class="success-icon">✓</div>
   <h2 style="font-size: 18px; margin: 0 0 6px;">ส่งข้อมูลสำเร็จ</h2>
@@ -555,7 +555,7 @@
   const guideBox = document.getElementById("guideBox");
   const cropCanvas = document.getElementById("cropCanvas");
 
-  // ฟังก์ชันแจ้งเตือนสิทธิ์บัตรทอง
+  // แจ้งเตือนเงื่อนไขสิทธิ์บัตรทอง รพ.สต.
   function alertUCOnly() {
     Swal.fire({
       icon: 'warning',
@@ -570,7 +570,7 @@
   rightsSelect.addEventListener("change", (e) => {
     if (e.target.value !== "บัตรทอง (UC)") {
       alertUCOnly();
-      e.target.value = ""; // รีเซ็ตให้เลือกใหม่
+      e.target.value = "";
     }
   });
 
@@ -586,7 +586,7 @@
     }
   });
 
-  // เปิดกล้องสดพร้อมกรอบเล็ง
+  // เปิดกล้องสด
   openScannerBtn.addEventListener("click", async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       fallbackFileInput.click();
@@ -621,7 +621,7 @@
 
   closeCameraBtn.addEventListener("click", stopCamera);
 
-  // ตัดภาพตามกรอบเล็ง 2.4:1
+  // ตัดภาพตามกรอบเล็ง 4:3
   shutterBtn.addEventListener("click", () => {
     const video = cameraVideo;
     if (!video.videoWidth || !video.videoHeight) return;
@@ -709,7 +709,7 @@
             filledCount++;
           } else {
             isNonUC = true;
-            rightsSelect.value = ""; // ไม่เลือกให้
+            rightsSelect.value = "";
           }
         }
 
@@ -753,7 +753,6 @@
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // ตรวจสอบสิทธิ์การรักษา ต้องเป็น บัตรทอง (UC) เท่านั้น
     const rightsVal = rightsSelect.value;
     if (rightsVal !== "บัตรทอง (UC)") {
       alertUCOnly();
