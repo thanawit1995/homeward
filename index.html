@@ -53,6 +53,9 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
 #cameraCanvas{display:none}
+.zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
+.zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.zoom-control input[type=range]{flex:1;accent-color:#fff}
 
 /* Crop modal */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
@@ -178,6 +181,10 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 <div id="cameraModal">
   <video id="cameraVideo" autoplay playsinline muted></video>
   <canvas id="cameraCanvas"></canvas>
+  <div class="zoom-control" id="zoomControl" style="display:none;">
+    <span class="zoom-label" id="zoomLabel">1.0x</span>
+    <input type="range" id="zoomSlider" step="0.1">
+  </div>
   <div class="camera-ui">
     <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
     <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
@@ -243,6 +250,10 @@ const openCameraBtn=document.getElementById("openCameraBtn");
 const closeCameraBtn=document.getElementById("closeCameraBtn");
 const captureCameraBtn=document.getElementById("captureCameraBtn");
 const switchCameraBtn=document.getElementById("switchCameraBtn");
+const zoomControl=document.getElementById("zoomControl");
+const zoomSlider=document.getElementById("zoomSlider");
+const zoomLabel=document.getElementById("zoomLabel");
+let zoomCapable=false;
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -293,12 +304,14 @@ async function openCamera(){
       video:{
         facingMode:{ideal:cameraFacingMode},
         width:{ideal:1920},
-        height:{ideal:1080}
+        height:{ideal:1080},
+        zoom:{ideal:1}
       },
       audio:false
     });
     cameraVideo.srcObject=cameraStream;
     await cameraVideo.play();
+    await setupZoomControl();
   }catch(err){
     console.error("Camera error:",err);
     stopCamera();
@@ -317,7 +330,59 @@ function stopCamera(){
     cameraStream=null;
   }
   cameraVideo.srcObject=null;
+  zoomControl.style.display="none";
+  zoomCapable=false;
 }
+
+async function setupZoomControl(){
+  zoomControl.style.display="none";
+  zoomCapable=false;
+
+  if(!cameraStream) return;
+  const track=cameraStream.getVideoTracks()[0];
+  if(!track || typeof track.getCapabilities!=="function") return;
+
+  let caps;
+  try{ caps=track.getCapabilities(); }catch(e){ return; }
+  if(!caps || !caps.zoom) return;
+
+  const min=caps.zoom.min ?? 1;
+  const max=caps.zoom.max ?? 1;
+  if(max<=min) return;
+
+  const step=caps.zoom.step || 0.1;
+  const defaultZoom=(min<=1 && max>=1) ? 1 : min;
+
+  zoomSlider.min=min;
+  zoomSlider.max=max;
+  zoomSlider.step=step;
+  zoomSlider.value=defaultZoom;
+  zoomLabel.textContent=defaultZoom.toFixed(1)+"x";
+
+  try{
+    await track.applyConstraints({advanced:[{zoom:defaultZoom}]});
+  }catch(e){
+    console.warn("Set default zoom failed:",e);
+  }
+
+  zoomCapable=true;
+  zoomControl.style.display="flex";
+}
+
+zoomSlider.addEventListener("input",async()=>{
+  if(!cameraStream) return;
+  const track=cameraStream.getVideoTracks()[0];
+  if(!track) return;
+
+  const val=parseFloat(zoomSlider.value);
+  zoomLabel.textContent=val.toFixed(1)+"x";
+
+  try{
+    await track.applyConstraints({advanced:[{zoom:val}]});
+  }catch(e){
+    console.warn("Zoom apply failed:",e);
+  }
+});
 
 function closeCamera(){
   stopCamera();
