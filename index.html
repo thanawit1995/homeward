@@ -53,7 +53,13 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
 #cameraCanvas{display:none}
-.zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
+
+/* แถบเลือกเลนส์กล้องหลังโดยตรง */
+.lens-selector-bar{position:absolute;left:0;right:0;bottom:100px;display:flex;justify-content:center;gap:10px;z-index:20}
+.lens-pill-btn{background:rgba(0,0,0,.6);color:#fff;border:1.5px solid rgba(255,255,255,.5);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);transition:all .2s ease}
+.lens-pill-btn.active{background:#0284c7;border-color:#38bdf8;box-shadow:0 0 8px rgba(56,189,248,.6)}
+
+.zoom-control{position:absolute;left:0;right:0;bottom:145px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
 .zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .zoom-control input[type=range]{flex:1;accent-color:#fff}
 .lens-indicator{position:absolute;top:14px;left:0;right:0;text-align:center;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:10}
@@ -179,21 +185,29 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
+<!-- Modal กล้อง -->
 <div id="cameraModal">
   <video id="cameraVideo" autoplay playsinline muted></video>
   <canvas id="cameraCanvas"></canvas>
+  
+  <div class="lens-indicator" id="lensIndicator" style="display:none;"></div>
+
   <div class="zoom-control" id="zoomControl" style="display:none;">
     <span class="zoom-label" id="zoomLabel">1.0x</span>
     <input type="range" id="zoomSlider" step="0.1">
   </div>
-  <div class="lens-indicator" id="lensIndicator" style="display:none;"></div>
+
+  <!-- แถบปุ่มแยกเฉพาะเลนส์กล้องหลัง -->
+  <div class="lens-selector-bar" id="lensSelectorBar" style="display:none;"></div>
+
   <div class="camera-ui">
     <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
     <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
-    <button type="button" class="camera-btn camera-switch" id="switchCameraBtn" aria-label="สลับกล้อง">↻</button>
+    <button type="button" class="camera-btn camera-switch" id="switchCameraBtn" title="สลับหน้า/หลัง">📷⇄</button>
   </div>
 </div>
 
+<!-- Modal ครอปภาพ -->
 <div id="cropModal">
   <div class="crop-hint">ลากกรอบให้พอดีกับใบเอกสาร แล้วกดยืนยัน</div>
   <div id="cropImageWrap">
@@ -211,7 +225,10 @@ const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuC
 
 let lineProfile = { userId:"", displayName:"" };
 let cameraStream = null;
-let cameraFacingMode = "environment";
+let currentMode = "environment"; // "environment" หรือ "user"
+let backCameraDevices = [];
+let activeDeviceId = null;
+let hasCameraPermission = false;
 
 async function initLiff(){
   try{
@@ -252,14 +269,11 @@ const openCameraBtn=document.getElementById("openCameraBtn");
 const closeCameraBtn=document.getElementById("closeCameraBtn");
 const captureCameraBtn=document.getElementById("captureCameraBtn");
 const switchCameraBtn=document.getElementById("switchCameraBtn");
+const lensSelectorBar=document.getElementById("lensSelectorBar");
 const zoomControl=document.getElementById("zoomControl");
 const zoomSlider=document.getElementById("zoomSlider");
 const zoomLabel=document.getElementById("zoomLabel");
 const lensIndicator=document.getElementById("lensIndicator");
-let zoomCapable=false;
-let backCameraDevices=[];
-let backCameraIndex=0;
-let devicesEnumerated=false;
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -293,58 +307,117 @@ galleryFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
+// ตรวจสอบและค้นหาเลนส์กล้องหลังทั้งหมด
+async function enumerateAllCameras(){
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const videoDevices=devices.filter(d=>d.kind==="videoinput");
+    
+    // คัดกรองเฉพาะเลนส์กล้องหลัง
+    backCameraDevices=videoDevices.filter(d=>/back|rear|environment/i.test(d.label));
+    
+    // Fallback หากบางเบราว์เซอร์ไม่แสดง Label
+    if(backCameraDevices.length===0 && videoDevices.length>0){
+      backCameraDevices=videoDevices;
+    }
+  }catch(e){
+    console.warn("enumerateDevices failed:",e);
+  }
+}
+
+// สร้างปุ่มแยกเลนส์ (1, 2, 3...)
+function renderLensButtons(){
+  lensSelectorBar.innerHTML="";
+  if(currentMode==="user" || backCameraDevices.length<=1){
+    lensSelectorBar.style.display="none";
+    lensIndicator.style.display="none";
+    return;
+  }
+
+  backCameraDevices.forEach((dev,idx)=>{
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="lens-pill-btn"+(dev.deviceId===activeDeviceId?" active":"");
+    btn.textContent="เลนส์ "+(idx+1);
+    btn.addEventListener("click",()=>changeLensDirect(dev.deviceId));
+    lensSelectorBar.appendChild(btn);
+  });
+
+  lensSelectorBar.style.display="flex";
+  const currentIndex=backCameraDevices.findIndex(d=>d.deviceId===activeDeviceId);
+  lensIndicator.textContent="กำลังใช้: เลนส์ "+(currentIndex>=0?currentIndex+1:1)+" จากทั้งหมด "+backCameraDevices.length+" เลนส์";
+  lensIndicator.style.display="block";
+}
+
+// เปลี่ยนเลนส์โดยใช้ DeviceId ไม่ต้องขอ Permission ใหม่
+async function changeLensDirect(targetDeviceId){
+  if(activeDeviceId===targetDeviceId && cameraStream) return;
+  activeDeviceId=targetDeviceId;
+  currentMode="environment";
+  await startVideoStream({deviceId:{exact:targetDeviceId}});
+  renderLensButtons();
+}
+
+// รันสตรีมกล้อง
+async function startVideoStream(videoConstraints){
+  // ปิด Track เดิมก่อนเพื่อคืนฮาร์ดแวร์
+  if(cameraStream){
+    cameraStream.getTracks().forEach(track=>track.stop());
+    cameraStream=null;
+  }
+
+  const baseConstraints={
+    width:{ideal:1920},
+    height:{ideal:1080}
+  };
+
+  cameraStream=await navigator.mediaDevices.getUserMedia({
+    video:Object.assign(baseConstraints,videoConstraints),
+    audio:false
+  });
+
+  cameraVideo.srcObject=cameraStream;
+  await cameraVideo.play();
+  await setupZoomControl();
+}
+
+// เปิดกล้องครั้งแรก (ขอ Permission แค่ครั้งนี้)
 async function openCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    Swal.fire({
-      icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",
-      text:"กรุณาเปิดผ่านเบราว์เซอร์ที่รองรับกล้อง หรือเลือกภาพจากอัลบั้ม",
-      confirmButtonColor:"#0284c7"
-    });
+    Swal.fire({icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",text:"กรุณาเลือกภาพจากอัลบั้ม",confirmButtonColor:"#0284c7"});
     return;
   }
 
   try{
-    stopCamera();
     cameraModal.style.display="flex";
 
-    let videoConstraints;
-    if(cameraFacingMode==="environment" && backCameraDevices.length>0){
-      videoConstraints={
-        deviceId:{exact:backCameraDevices[backCameraIndex].deviceId},
-        width:{ideal:1920},
-        height:{ideal:1080},
-        zoom:{ideal:1}
-      };
-    }else{
-      videoConstraints={
-        facingMode:{ideal:cameraFacingMode},
-        width:{ideal:1920},
-        height:{ideal:1080},
-        zoom:{ideal:1}
-      };
+    // สตรีมครั้งแรกเพื่อขอสิทธิ์และปลดล็อกชื่อเลนส์
+    if(!hasCameraPermission || backCameraDevices.length===0){
+      await startVideoStream({facingMode:{ideal:"environment"}});
+      hasCameraPermission=true;
+      await enumerateAllCameras();
     }
 
-    cameraStream=await navigator.mediaDevices.getUserMedia({
-      video:videoConstraints,
-      audio:false
-    });
-    cameraVideo.srcObject=cameraStream;
-    await cameraVideo.play();
-    await setupZoomControl();
+    currentMode="environment";
 
-    if(cameraFacingMode==="environment"){
-      await enumerateBackCameras();
-      updateLensIndicator();
-    }else{
-      lensIndicator.style.display="none";
+    // ตั้งค่า Default เลนส์ที่ 3 หากมีตั้งแต่ 3 เลนส์ขึ้นไป
+    if(backCameraDevices.length>=3){
+      activeDeviceId=backCameraDevices[2].deviceId; // Index 2 คือเลนส์ที่ 3
+    }else if(backCameraDevices.length>0){
+      activeDeviceId=backCameraDevices[0].deviceId;
     }
+
+    if(activeDeviceId){
+      await startVideoStream({deviceId:{exact:activeDeviceId}});
+    }
+    renderLensButtons();
+
   }catch(err){
-    console.error("Camera error:",err);
-    stopCamera();
-    cameraModal.style.display="none";
+    console.error("Camera init error:",err);
+    closeCamera();
     Swal.fire({
       icon:"error",title:"ไม่สามารถเปิดกล้องได้",
-      text:"กรุณาอนุญาตการใช้กล้อง แล้วลองใหม่ หรือเลือกภาพจากอัลบั้ม",
+      text:"กรุณาอนุญาตการใช้กล้อง หรือเลือกภาพจากอัลบั้ม",
       confirmButtonColor:"#0284c7"
     });
   }
@@ -358,13 +431,38 @@ function stopCamera(){
   cameraVideo.srcObject=null;
   zoomControl.style.display="none";
   lensIndicator.style.display="none";
-  zoomCapable=false;
+  lensSelectorBar.style.display="none";
+}
+
+function closeCamera(){
+  stopCamera();
+  cameraModal.style.display="none";
+}
+
+// สลับกล้องหน้าและกล้องหลัง
+async function toggleFrontBackCamera(){
+  try{
+    if(currentMode==="environment"){
+      currentMode="user";
+      activeDeviceId=null;
+      await startVideoStream({facingMode:{exact:"user"}});
+    }else{
+      currentMode="environment";
+      if(backCameraDevices.length>=3){
+        activeDeviceId=backCameraDevices[2].deviceId;
+      }else if(backCameraDevices.length>0){
+        activeDeviceId=backCameraDevices[0].deviceId;
+      }
+      await startVideoStream(activeDeviceId?{deviceId:{exact:activeDeviceId}}:{facingMode:{ideal:"environment"}});
+    }
+    renderLensButtons();
+  }catch(err){
+    console.warn("Toggle front/back error:",err);
+  }
 }
 
 async function setupZoomControl(){
   zoomControl.style.display="none";
-  zoomCapable=false;
-
   if(!cameraStream) return;
   const track=cameraStream.getVideoTracks()[0];
   if(!track || typeof track.getCapabilities!=="function") return;
@@ -373,26 +471,21 @@ async function setupZoomControl(){
   try{ caps=track.getCapabilities(); }catch(e){ return; }
   if(!caps || !caps.zoom) return;
 
-  const min=caps.zoom.min ?? 1;
-  const max=caps.zoom.max ?? 1;
+  const min=caps.zoom.min??1;
+  const max=caps.zoom.max??1;
   if(max<=min) return;
 
-  const step=caps.zoom.step || 0.1;
-  const defaultZoom=(min<=1 && max>=1) ? 1 : min;
-
+  const defaultZoom=(min<=1 && max>=1)?1:min;
   zoomSlider.min=min;
   zoomSlider.max=max;
-  zoomSlider.step=step;
+  zoomSlider.step=caps.zoom.step||0.1;
   zoomSlider.value=defaultZoom;
   zoomLabel.textContent=defaultZoom.toFixed(1)+"x";
 
   try{
     await track.applyConstraints({advanced:[{zoom:defaultZoom}]});
-  }catch(e){
-    console.warn("Set default zoom failed:",e);
-  }
+  }catch(e){}
 
-  zoomCapable=true;
   zoomControl.style.display="flex";
 }
 
@@ -400,62 +493,10 @@ zoomSlider.addEventListener("input",async()=>{
   if(!cameraStream) return;
   const track=cameraStream.getVideoTracks()[0];
   if(!track) return;
-
   const val=parseFloat(zoomSlider.value);
   zoomLabel.textContent=val.toFixed(1)+"x";
-
-  try{
-    await track.applyConstraints({advanced:[{zoom:val}]});
-  }catch(e){
-    console.warn("Zoom apply failed:",e);
-  }
+  try{ await track.applyConstraints({advanced:[{zoom:val}]}); }catch(e){}
 });
-
-function closeCamera(){
-  stopCamera();
-  cameraModal.style.display="none";
-}
-
-async function enumerateBackCameras(){
-  if(devicesEnumerated) return;
-  try{
-    const devices=await navigator.mediaDevices.enumerateDevices();
-    backCameraDevices=devices.filter(d=>
-      d.kind==="videoinput" && /back|rear|environment/i.test(d.label)
-    );
-    devicesEnumerated=true;
-  }catch(e){
-    console.warn("enumerateDevices failed:",e);
-  }
-}
-
-function updateLensIndicator(){
-  if(backCameraDevices.length>1){
-    lensIndicator.textContent=
-      "เลนส์ " + (backCameraIndex+1) + "/" + backCameraDevices.length +
-      " (แตะ ↻ เพื่อลองเลนส์อื่น)";
-    lensIndicator.style.display="block";
-  }else{
-    lensIndicator.style.display="none";
-  }
-}
-
-async function switchCamera(){
-  if(cameraFacingMode==="environment"){
-    await enumerateBackCameras();
-
-    if(backCameraDevices.length>1 && backCameraIndex<backCameraDevices.length-1){
-      backCameraIndex++;
-    }else{
-      cameraFacingMode="user";
-      backCameraIndex=0;
-    }
-  }else{
-    cameraFacingMode="environment";
-    backCameraIndex=0;
-  }
-  await openCamera();
-}
 
 function captureCamera(){
   if(!cameraStream || !cameraVideo.videoWidth) return;
@@ -486,13 +527,12 @@ function captureCamera(){
 openCameraBtn.addEventListener("click",openCamera);
 closeCameraBtn.addEventListener("click",closeCamera);
 captureCameraBtn.addEventListener("click",captureCamera);
-switchCameraBtn.addEventListener("click",switchCamera);
+switchCameraBtn.addEventListener("click",toggleFrontBackCamera);
 
 function isHeicFile(file){
   const name=(file.name||"").toLowerCase();
   const type=(file.type||"").toLowerCase();
-  return name.endsWith(".heic") || name.endsWith(".heif") ||
-         type.includes("heic") || type.includes("heif");
+  return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
 }
 
 async function prepareFileForCrop(file){
@@ -516,7 +556,7 @@ async function prepareFileForCrop(file){
     console.error("HEIC convert error:",err);
     Swal.fire({
       icon:"error",title:"แปลงไฟล์ภาพไม่สำเร็จ",
-      text:"ไฟล์ภาพนี้เป็นชนิด HEIC/HEIF กรุณาถ่ายรูปใหม่ผ่านปุ่ม 📷 ถ่ายรูปใหม่ในหน้านี้แทน หรือเปลี่ยนการตั้งค่ากล้องเป็น JPEG",
+      text:"ไฟล์ภาพนี้เป็นชนิด HEIC กรุณาถ่ายใหม่ผ่านปุ่มในหน้านี้แทน",
       confirmButtonColor:"#0284c7"
     });
   }finally{
@@ -540,7 +580,7 @@ function openCropModal(file){
       toggleDragModeOnDblclick:false
     });
   }).catch(()=>{
-    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง หรือเลือกภาพอื่น",confirmButtonColor:"#0284c7"});
+    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
   });
 }
 
