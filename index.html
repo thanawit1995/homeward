@@ -44,20 +44,6 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .loading-card{background:#fff;border-radius:12px;padding:20px 28px;display:flex;flex-direction:column;align-items:center;gap:10px}.spinner{width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
 #loadingText{font-size:13px;color:var(--text-main);font-weight:600}@keyframes spin{to{transform:rotate(360deg)}}
 
-/* Camera modal */
-#cameraModal{display:none;position:fixed;inset:0;background:#000;z-index:3000;flex-direction:column}
-#cameraVideo{width:100%;height:100%;object-fit:cover;background:#000}
-.camera-ui{position:absolute;left:0;right:0;bottom:0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.75))}
-.camera-btn{border:0;border-radius:999px;cursor:pointer;font-family:inherit;font-weight:600}
-.camera-close{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:22px}
-.camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
-.camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
-#cameraCanvas{display:none}
-
-.zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
-.zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.zoom-control input[type=range]{flex:1;accent-color:#fff}
-
 /* Crop modal & Guide Box */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
 #cropImageWrap{flex:1;position:relative;overflow:hidden;background:#000}
@@ -70,7 +56,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
 .crop-example-toggle{background:#1e293b;color:#38bdf8;border:1px dashed #0284c7;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;margin-top:6px;display:inline-flex;align-items:center;gap:6px}
 .crop-example-box{display:none;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px;margin:4px 16px 8px;text-align:center}
-.crop-example-img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;border:1.5px solid #38bdf8}
+.crop-example-img{width:100%;max-height:180px;object-fit:contain;border-radius:6px;border:1.5px solid #38bdf8;background:#fff}
 .crop-example-caption{color:#94a3b8;font-size:11px;margin-top:5px}
 </style>
 </head>
@@ -86,10 +72,12 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
   <div class="card-section" style="padding:8px;">
     <div class="scanner-actions">
-      <button type="button" class="scanner-label-btn" id="openCameraBtn">📷 ถ่ายรูปใหม่</button>
+      <!-- ใช้ Native Camera ของระบบมือถือ เปิดติด 100% ไม่ติดปัญหา permission ซ้ำ -->
+      <label class="scanner-label-btn" for="cameraFileInput">📷 ถ่ายรูปใหม่</label>
       <label class="scanner-label-btn" for="galleryFileInput">🖼️ เลือกจากอัลบั้ม</label>
     </div>
 
+    <input type="file" id="cameraFileInput" accept="image/*" capture="environment" style="display:none;">
     <input type="file" id="galleryFileInput" accept="image/*" style="display:none;">
 
     <div id="previewContainer">
@@ -184,23 +172,6 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
-<!-- Modal กล้อง -->
-<div id="cameraModal">
-  <video id="cameraVideo" autoplay playsinline muted></video>
-  <canvas id="cameraCanvas"></canvas>
-
-  <div class="zoom-control" id="zoomControl" style="display:none;">
-    <span class="zoom-label" id="zoomLabel">1.0x</span>
-    <input type="range" id="zoomSlider" step="0.1">
-  </div>
-
-  <div class="camera-ui">
-    <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
-    <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
-    <button type="button" class="camera-btn camera-switch" id="switchCameraBtn" title="สลับกล้องหน้า/หลัง">📷⇄</button>
-  </div>
-</div>
-
 <!-- Modal ครอปภาพ -->
 <div id="cropModal">
   <div class="crop-hint">
@@ -209,7 +180,8 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 
   <div class="crop-example-box" id="cropExampleBox">
-    <img class="crop-example-img" id="cropExampleImage" src="sample-crop.jpg" alt="ตัวอย่างการครอบตัดเอกสาร">
+    <!-- ชี้ตรงไปยัง sample-crop.jpg พร้อม fallback ป้องกันภาพแตก -->
+    <img class="crop-example-img" id="cropExampleImage" src="./sample-crop.jpg" alt="ตัวอย่างการครอบตัดเอกสาร">
     <div class="crop-example-caption">ตัดเฉพาะแถบกรอบสีฟ้าตามภาพตัวอย่าง ช่วยให้สแกนเร็วและถูกต้องที่สุด</div>
   </div>
 
@@ -227,8 +199,6 @@ const LIFF_ID = "2011323423-D42WYaU4";
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
 
 let lineProfile = { userId:"", displayName:"" };
-let cameraStream = null;
-let currentFacingMode = "environment";
 
 async function initLiff(){
   try{
@@ -258,20 +228,10 @@ const wardField=document.getElementById("wardField");
 const wardInput=document.getElementById("ward");
 const rightsSelect=document.getElementById("rights");
 const indicationSelect=document.getElementById("indication");
+const cameraFileInput=document.getElementById("cameraFileInput");
 const galleryFileInput=document.getElementById("galleryFileInput");
 const previewContainer=document.getElementById("previewContainer");
 const imagePreview=document.getElementById("imagePreview");
-
-const cameraModal=document.getElementById("cameraModal");
-const cameraVideo=document.getElementById("cameraVideo");
-const cameraCanvas=document.getElementById("cameraCanvas");
-const openCameraBtn=document.getElementById("openCameraBtn");
-const closeCameraBtn=document.getElementById("closeCameraBtn");
-const captureCameraBtn=document.getElementById("captureCameraBtn");
-const switchCameraBtn=document.getElementById("switchCameraBtn");
-const zoomControl=document.getElementById("zoomControl");
-const zoomSlider=document.getElementById("zoomSlider");
-const zoomLabel=document.getElementById("zoomLabel");
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -279,7 +239,14 @@ const cropCancelBtn=document.getElementById("cropCancelBtn");
 const cropConfirmBtn=document.getElementById("cropConfirmBtn");
 const toggleExampleBtn=document.getElementById("toggleExampleBtn");
 const cropExampleBox=document.getElementById("cropExampleBox");
+const cropExampleImage=document.getElementById("cropExampleImage");
 let cropperInstance=null;
+
+// ป้องกันปัญหาภาพแคชค้าง และกรณีโหลดไฟล์ไม่ติด
+cropExampleImage.src = "./sample-crop.jpg?t=" + new Date().getTime();
+cropExampleImage.onerror = function() {
+  this.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' width='100%' height='100%'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='15' y='15' width='390' height='150' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='2' rx='6'/><rect x='24' y='24' width='280' height='105' fill='rgba(56,189,248,0.22)' stroke='%230284c7' stroke-width='3' stroke-dasharray='5' rx='4'/><text x='34' y='48' font-family='sans-serif' font-size='15' font-weight='bold' fill='%230f172a'>ใบนำทางผู้ป่วยนอก</text><text x='34' y='72' font-family='sans-serif' font-size='12' fill='%23334155'>HN : 000xxxxxx</text><text x='34' y='92' font-family='sans-serif' font-size='12' fill='%23334155'>ชื่อ : นาย... อายุ 56 ปี</text><text x='34' y='112' font-family='sans-serif' font-size='12' fill='%23334155'>สิทธิ : ชำระเงินเอง โทร : 092xxxxxxx</text><text x='316' y='52' font-family='sans-serif' font-size='16' font-weight='bold' fill='%230f172a'>1617</text><text x='316' y='88' font-family='sans-serif' font-size='12' font-weight='bold' fill='%23ef4444'>❌ ไม่ต้องครอบ</text><text x='316' y='108' font-family='sans-serif' font-size='10.5' fill='%2364748b'>ส่วนตาราง/กราฟล่าง</text></svg>";
+};
 
 function alertUCOnly(){
   Swal.fire({
@@ -303,140 +270,13 @@ settingSelect.addEventListener("change",e=>{
   }
 });
 
-galleryFileInput.addEventListener("change",function(){
+cameraFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
-/* เปิดสตรีมกล้อง: ใช้ facingMode มาตรฐาน ป้องกันปัญหาล็อกและขอ Permission ซ้ำ */
-async function startCameraStream(facingMode) {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-
-  const constraints = {
-    video: {
-      facingMode: { ideal: facingMode },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
-    },
-    audio: false
-  };
-
-  cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-  cameraVideo.srcObject = cameraStream;
-  await cameraVideo.play();
-  await setupZoomControl();
-}
-
-async function openCamera(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    Swal.fire({icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",text:"กรุณาเลือกภาพจากอัลบั้ม",confirmButtonColor:"#0284c7"});
-    return;
-  }
-
-  try{
-    cameraModal.style.display="flex";
-    currentFacingMode = "environment";
-    await startCameraStream(currentFacingMode);
-  }catch(err){
-    console.error("Camera open error:",err);
-    closeCamera();
-    Swal.fire({
-      icon:"error",title:"ไม่สามารถเปิดกล้องได้",
-      text:"กรุณาอนุญาตการใช้กล้อง แล้วลองใหม่อีกครั้ง หรือเลือกภาพจากอัลบั้ม",
-      confirmButtonColor:"#0284c7"
-    });
-  }
-}
-
-function stopCamera(){
-  if(cameraStream){
-    cameraStream.getTracks().forEach(track=>track.stop());
-    cameraStream=null;
-  }
-  cameraVideo.srcObject=null;
-  zoomControl.style.display="none";
-}
-
-function closeCamera(){
-  stopCamera();
-  cameraModal.style.display="none";
-}
-
-async function toggleFrontBackCamera(){
-  try{
-    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-    await startCameraStream(currentFacingMode);
-  }catch(err){
-    console.warn("Toggle camera error:",err);
-  }
-}
-
-async function setupZoomControl(){
-  zoomControl.style.display="none";
-  if(!cameraStream) return;
-  const track=cameraStream.getVideoTracks()[0];
-  if(!track || typeof track.getCapabilities!=="function") return;
-
-  let caps;
-  try{ caps=track.getCapabilities(); }catch(e){ return; }
-  if(!caps || !caps.zoom) return;
-
-  const min=caps.zoom.min??1;
-  const max=caps.zoom.max??1;
-  if(max<=min) return;
-
-  const defaultZoom=(min<=1 && max>=1)?1:min;
-  zoomSlider.min=min;
-  zoomSlider.max=max;
-  zoomSlider.step=caps.zoom.step||0.1;
-  zoomSlider.value=defaultZoom;
-  zoomLabel.textContent=defaultZoom.toFixed(1)+"x";
-
-  try{ await track.applyConstraints({advanced:[{zoom:defaultZoom}]}); }catch(e){}
-  zoomControl.style.display="flex";
-}
-
-zoomSlider.addEventListener("input",async()=>{
-  if(!cameraStream) return;
-  const track=cameraStream.getVideoTracks()[0];
-  if(!track) return;
-  const val=parseFloat(zoomSlider.value);
-  zoomLabel.textContent=val.toFixed(1)+"x";
-  try{ await track.applyConstraints({advanced:[{zoom:val}]}); }catch(e){}
+galleryFileInput.addEventListener("change",function(){
+  if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
-
-function captureCamera(){
-  if(!cameraStream || !cameraVideo.videoWidth) return;
-
-  const maxDimension=2000;
-  let width=cameraVideo.videoWidth;
-  let height=cameraVideo.videoHeight;
-
-  if(width>height && width>maxDimension){
-    height=Math.round(height*maxDimension/width); width=maxDimension;
-  }else if(height>=width && height>maxDimension){
-    width=Math.round(width*maxDimension/height); height=maxDimension;
-  }
-
-  cameraCanvas.width=width;
-  cameraCanvas.height=height;
-  const ctx=cameraCanvas.getContext("2d");
-  ctx.drawImage(cameraVideo,0,0,width,height);
-
-  cameraCanvas.toBlob(async blob=>{
-    if(!blob) return;
-    const file=new File([blob],"camera-capture.jpg",{type:"image/jpeg"});
-    closeCamera();
-    openCropModal(file);
-  },"image/jpeg",.9);
-}
-
-openCameraBtn.addEventListener("click",openCamera);
-closeCameraBtn.addEventListener("click",closeCamera);
-captureCameraBtn.addEventListener("click",captureCamera);
-switchCameraBtn.addEventListener("click",toggleFrontBackCamera);
 
 toggleExampleBtn.addEventListener("click",()=>{
   const isHidden=cropExampleBox.style.display==="none" || !cropExampleBox.style.display;
@@ -506,6 +346,7 @@ function closeCropModal(){
   if(cropperInstance){ cropperInstance.destroy(); cropperInstance=null; }
   cropModal.style.display="none";
   cropImage.src="";
+  cameraFileInput.value="";
   galleryFileInput.value="";
 }
 
@@ -623,6 +464,7 @@ async function handleFileSelect(file){
     });
   }finally{
     loadingOverlay.style.display="none";
+    cameraFileInput.value="";
     galleryFileInput.value="";
   }
 }
@@ -709,8 +551,6 @@ form.addEventListener("submit",async e=>{
     loadingOverlay.style.display="none";
   }
 });
-
-window.addEventListener("pagehide",stopCamera);
 </script>
 </body>
 </html>
