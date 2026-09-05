@@ -44,6 +44,20 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .loading-card{background:#fff;border-radius:12px;padding:20px 28px;display:flex;flex-direction:column;align-items:center;gap:10px}.spinner{width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
 #loadingText{font-size:13px;color:var(--text-main);font-weight:600}@keyframes spin{to{transform:rotate(360deg)}}
 
+/* Camera modal */
+#cameraModal{display:none;position:fixed;inset:0;background:#000;z-index:3000;flex-direction:column}
+#cameraVideo{width:100%;height:100%;object-fit:cover;background:#000}
+.camera-ui{position:absolute;left:0;right:0;bottom:0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.camera-btn{border:0;border-radius:999px;cursor:pointer;font-family:inherit;font-weight:600}
+.camera-close{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:22px}
+.camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
+.camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
+#cameraCanvas{display:none}
+
+.zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
+.zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.zoom-control input[type=range]{flex:1;accent-color:#fff}
+
 /* Crop modal & Guide Box */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
 #cropImageWrap{flex:1;position:relative;overflow:hidden;background:#000}
@@ -72,12 +86,10 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
   <div class="card-section" style="padding:8px;">
     <div class="scanner-actions">
-      <!-- ใช้ Native Camera ของระบบมือถือ เปิดติด 100% ไม่ติดปัญหา permission ซ้ำ -->
-      <label class="scanner-label-btn" for="cameraFileInput">📷 ถ่ายรูปใหม่</label>
+      <button type="button" class="scanner-label-btn" id="openCameraBtn">📷 ถ่ายรูปใหม่</button>
       <label class="scanner-label-btn" for="galleryFileInput">🖼️ เลือกจากอัลบั้ม</label>
     </div>
 
-    <input type="file" id="cameraFileInput" accept="image/*" capture="environment" style="display:none;">
     <input type="file" id="galleryFileInput" accept="image/*" style="display:none;">
 
     <div id="previewContainer">
@@ -172,6 +184,23 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
+<!-- Modal กล้องสด (ควบคุมเลนส์ Wide และระยะซูมได้จริง) -->
+<div id="cameraModal">
+  <video id="cameraVideo" autoplay playsinline muted></video>
+  <canvas id="cameraCanvas"></canvas>
+
+  <div class="zoom-control" id="zoomControl" style="display:none;">
+    <span class="zoom-label" id="zoomLabel">1.0x</span>
+    <input type="range" id="zoomSlider" step="0.1">
+  </div>
+
+  <div class="camera-ui">
+    <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
+    <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
+    <button type="button" class="camera-btn camera-switch" id="switchCameraBtn" title="สลับกล้องหน้า/หลัง">📷⇄</button>
+  </div>
+</div>
+
 <!-- Modal ครอปภาพ -->
 <div id="cropModal">
   <div class="crop-hint">
@@ -180,7 +209,6 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 
   <div class="crop-example-box" id="cropExampleBox">
-    <!-- ชี้ตรงไปยัง sample-crop.jpg พร้อม fallback ป้องกันภาพแตก -->
     <img class="crop-example-img" id="cropExampleImage" src="./sample-crop.jpg" alt="ตัวอย่างการครอบตัดเอกสาร">
     <div class="crop-example-caption">ตัดเฉพาะแถบกรอบสีฟ้าตามภาพตัวอย่าง ช่วยให้สแกนเร็วและถูกต้องที่สุด</div>
   </div>
@@ -199,6 +227,8 @@ const LIFF_ID = "2011323423-D42WYaU4";
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
 
 let lineProfile = { userId:"", displayName:"" };
+let cameraStream = null;
+let currentFacingMode = "environment";
 
 async function initLiff(){
   try{
@@ -228,10 +258,20 @@ const wardField=document.getElementById("wardField");
 const wardInput=document.getElementById("ward");
 const rightsSelect=document.getElementById("rights");
 const indicationSelect=document.getElementById("indication");
-const cameraFileInput=document.getElementById("cameraFileInput");
 const galleryFileInput=document.getElementById("galleryFileInput");
 const previewContainer=document.getElementById("previewContainer");
 const imagePreview=document.getElementById("imagePreview");
+
+const cameraModal=document.getElementById("cameraModal");
+const cameraVideo=document.getElementById("cameraVideo");
+const cameraCanvas=document.getElementById("cameraCanvas");
+const openCameraBtn=document.getElementById("openCameraBtn");
+const closeCameraBtn=document.getElementById("closeCameraBtn");
+const captureCameraBtn=document.getElementById("captureCameraBtn");
+const switchCameraBtn=document.getElementById("switchCameraBtn");
+const zoomControl=document.getElementById("zoomControl");
+const zoomSlider=document.getElementById("zoomSlider");
+const zoomLabel=document.getElementById("zoomLabel");
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -242,7 +282,7 @@ const cropExampleBox=document.getElementById("cropExampleBox");
 const cropExampleImage=document.getElementById("cropExampleImage");
 let cropperInstance=null;
 
-// ป้องกันปัญหาภาพแคชค้าง และกรณีโหลดไฟล์ไม่ติด
+// ป้องกันแคชค้างรูปตัวอย่าง
 cropExampleImage.src = "./sample-crop.jpg?t=" + new Date().getTime();
 cropExampleImage.onerror = function() {
   this.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' width='100%' height='100%'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='15' y='15' width='390' height='150' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='2' rx='6'/><rect x='24' y='24' width='280' height='105' fill='rgba(56,189,248,0.22)' stroke='%230284c7' stroke-width='3' stroke-dasharray='5' rx='4'/><text x='34' y='48' font-family='sans-serif' font-size='15' font-weight='bold' fill='%230f172a'>ใบนำทางผู้ป่วยนอก</text><text x='34' y='72' font-family='sans-serif' font-size='12' fill='%23334155'>HN : 000xxxxxx</text><text x='34' y='92' font-family='sans-serif' font-size='12' fill='%23334155'>ชื่อ : นาย... อายุ 56 ปี</text><text x='34' y='112' font-family='sans-serif' font-size='12' fill='%23334155'>สิทธิ : ชำระเงินเอง โทร : 092xxxxxxx</text><text x='316' y='52' font-family='sans-serif' font-size='16' font-weight='bold' fill='%230f172a'>1617</text><text x='316' y='88' font-family='sans-serif' font-size='12' font-weight='bold' fill='%23ef4444'>❌ ไม่ต้องครอบ</text><text x='316' y='108' font-family='sans-serif' font-size='10.5' fill='%2364748b'>ส่วนตาราง/กราฟล่าง</text></svg>";
@@ -270,23 +310,178 @@ settingSelect.addEventListener("change",e=>{
   }
 });
 
-cameraFileInput.addEventListener("change",function(){
-  if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
-});
-
 galleryFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
-toggleExampleBtn.addEventListener("click",()=>{
-  const isHidden=cropExampleBox.style.display==="none" || !cropExampleBox.style.display;
-  cropExampleBox.style.display=isHidden?"block":"none";
-  toggleExampleBtn.textContent=isHidden?"✕ ซ่อนตัวอย่าง":"💡 ดูตัวอย่างกรอบที่ควรตัด";
+// ⚡ เปิดกล้องและล็อกเลนส์ Wide มุมกว้างที่สุดเสมอ
+async function startCameraStream(facingMode) {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+
+  // 1. ตรวจหาเลนส์กล้องหลังมุมกว้าง (Wide/Ultra-Wide)
+  let bestDeviceId = null;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === "videoinput");
+    const backCameras = videoDevices.filter(d => /back|rear|environment/i.test(d.label));
+    
+    // ค้นหาเลนส์ที่มีคำว่า wide หรือ 0.5x หรือเลือกตัวแรก
+    const wideCam = backCameras.find(d => /wide|ultra/i.test(d.label));
+    if (wideCam) {
+      bestDeviceId = wideCam.deviceId;
+    } else if (backCameras.length > 0) {
+      bestDeviceId = backCameras[0].deviceId;
+    }
+  } catch (_) {}
+
+  const videoConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 }
+  };
+
+  if (bestDeviceId && facingMode === "environment") {
+    videoConstraints.deviceId = { exact: bestDeviceId };
+  } else {
+    videoConstraints.facingMode = { ideal: facingMode };
+  }
+
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: videoConstraints,
+    audio: false
+  });
+
+  cameraVideo.srcObject = cameraStream;
+  await cameraVideo.play();
+
+  // 2. ปรับระยะซูมไปที่ค่าต่ำสุด (เช่น 0.5x, 0.6x หรือ 1.0x) ทันที
+  await forceUltraWideZoom();
+}
+
+async function forceUltraWideZoom() {
+  zoomControl.style.display = "none";
+  if (!cameraStream) return;
+
+  const track = cameraStream.getVideoTracks()[0];
+  if (!track || typeof track.getCapabilities !== "function") return;
+
+  let caps;
+  try { caps = track.getCapabilities(); } catch (e) { return; }
+  if (!caps || !caps.zoom) return;
+
+  const minZoom = caps.zoom.min ?? 1;
+  const maxZoom = caps.zoom.max ?? 1;
+
+  // ตั้งค่าไปที่ระยะกว้างสุดเสมอ
+  try {
+    await track.applyConstraints({ advanced: [{ zoom: minZoom }] });
+  } catch (_) {}
+
+  if (maxZoom > minZoom) {
+    zoomSlider.min = minZoom;
+    zoomSlider.max = maxZoom;
+    zoomSlider.step = caps.zoom.step || 0.1;
+    zoomSlider.value = minZoom;
+    zoomLabel.textContent = minZoom.toFixed(1) + "x";
+    zoomControl.style.display = "flex";
+  }
+}
+
+zoomSlider.addEventListener("input", async () => {
+  if (!cameraStream) return;
+  const track = cameraStream.getVideoTracks()[0];
+  if (!track) return;
+  const val = parseFloat(zoomSlider.value);
+  zoomLabel.textContent = val.toFixed(1) + "x";
+  try { await track.applyConstraints({ advanced: [{ zoom: val }] }); } catch (_) {}
+});
+
+async function openCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    Swal.fire({icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",text:"กรุณาเลือกภาพจากอัลบั้ม",confirmButtonColor:"#0284c7"});
+    return;
+  }
+
+  try{
+    cameraModal.style.display = "flex";
+    currentFacingMode = "environment";
+    await startCameraStream(currentFacingMode);
+  }catch(err){
+    console.error("Camera open error:", err);
+    closeCamera();
+    Swal.fire({
+      icon:"error",title:"ไม่สามารถเปิดกล้องได้",
+      text:"กรุณาอนุญาตการใช้กล้อง แล้วลองใหม่อีกครั้ง หรือเลือกภาพจากอัลบั้ม",
+      confirmButtonColor:"#0284c7"
+    });
+  }
+}
+
+function stopCamera(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraVideo.srcObject = null;
+  zoomControl.style.display = "none";
+}
+
+function closeCamera(){
+  stopCamera();
+  cameraModal.style.display = "none";
+}
+
+async function toggleFrontBackCamera(){
+  try{
+    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+    await startCameraStream(currentFacingMode);
+  }catch(err){
+    console.warn("Toggle camera error:", err);
+  }
+}
+
+function captureCamera(){
+  if(!cameraStream || !cameraVideo.videoWidth) return;
+
+  const maxDimension = 2000;
+  let width = cameraVideo.videoWidth;
+  let height = cameraVideo.videoHeight;
+
+  if(width > height && width > maxDimension){
+    height = Math.round(height * maxDimension / width); width = maxDimension;
+  }else if(height >= width && height > maxDimension){
+    width = Math.round(width * maxDimension / height); height = maxDimension;
+  }
+
+  cameraCanvas.width = width;
+  cameraCanvas.height = height;
+  const ctx = cameraCanvas.getContext("2d");
+  ctx.drawImage(cameraVideo, 0, 0, width, height);
+
+  cameraCanvas.toBlob(async blob => {
+    if(!blob) return;
+    const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+    closeCamera();
+    openCropModal(file);
+  }, "image/jpeg", 0.9);
+}
+
+openCameraBtn.addEventListener("click", openCamera);
+closeCameraBtn.addEventListener("click", closeCamera);
+captureCameraBtn.addEventListener("click", captureCamera);
+switchCameraBtn.addEventListener("click", toggleFrontBackCamera);
+
+toggleExampleBtn.addEventListener("click", () => {
+  const isHidden = cropExampleBox.style.display === "none" || !cropExampleBox.style.display;
+  cropExampleBox.style.display = isHidden ? "block" : "none";
+  toggleExampleBtn.textContent = isHidden ? "✕ ซ่อนตัวอย่าง" : "💡 ดูตัวอย่างกรอบที่ควรตัด";
 });
 
 function isHeicFile(file){
-  const name=(file.name||"").toLowerCase();
-  const type=(file.type||"").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  const type = (file.type || "").toLowerCase();
   return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
 }
 
@@ -296,261 +491,261 @@ async function prepareFileForCrop(file){
     return;
   }
 
-  loadingText.innerText="กำลังแปลงไฟล์ภาพ...";
-  loadingOverlay.style.display="flex";
+  loadingText.innerText = "กำลังแปลงไฟล์ภาพ...";
+  loadingOverlay.style.display = "flex";
 
   try{
-    const convertedBlob=await heic2any({blob:file,toType:"image/jpeg",quality:0.9});
-    const jpegFile=new File(
-      [Array.isArray(convertedBlob)?convertedBlob[0]:convertedBlob],
+    const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+    const jpegFile = new File(
+      [Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob],
       "converted-image.jpg",
-      {type:"image/jpeg"}
+      { type: "image/jpeg" }
     );
     openCropModal(jpegFile);
   }catch(err){
-    console.error("HEIC convert error:",err);
+    console.error("HEIC convert error:", err);
     Swal.fire({
       icon:"error",title:"แปลงไฟล์ภาพไม่สำเร็จ",
       text:"ไฟล์ภาพนี้เป็นชนิด HEIC กรุณาถ่ายใหม่ผ่านปุ่มในหน้านี้แทน",
       confirmButtonColor:"#0284c7"
     });
   }finally{
-    loadingOverlay.style.display="none";
+    loadingOverlay.style.display = "none";
   }
 }
 
 function openCropModal(file){
-  resizeImage(file,2000,0.85).then(dataUrl=>{
-    cropImage.src=dataUrl;
-    cropModal.style.display="flex";
-    cropExampleBox.style.display="none";
-    toggleExampleBtn.textContent="💡 ดูตัวอย่างกรอบที่ควรตัด";
+  resizeImage(file, 2000, 0.85).then(dataUrl => {
+    cropImage.src = dataUrl;
+    cropModal.style.display = "flex";
+    cropExampleBox.style.display = "none";
+    toggleExampleBtn.textContent = "💡 ดูตัวอย่างกรอบที่ควรตัด";
 
     if(cropperInstance) cropperInstance.destroy();
-    cropperInstance=new Cropper(cropImage,{
-      viewMode:1,
-      autoCropArea:0.85,
-      initialAspectRatio:3.2/1,
-      background:false,
-      dragMode:"move",
-      guides:true,
-      responsive:true,
-      toggleDragModeOnDblclick:false
+    cropperInstance = new Cropper(cropImage, {
+      viewMode: 1,
+      autoCropArea: 0.85,
+      initialAspectRatio: 3.2 / 1,
+      background: false,
+      dragMode: "move",
+      guides: true,
+      responsive: true,
+      toggleDragModeOnDblclick: false
     });
-  }).catch(()=>{
-    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง หรือเลือกภาพอื่น",confirmButtonColor:"#0284c7"});
+  }).catch(() => {
+    Swal.fire({ icon: "error", title: "เปิดภาพไม่สำเร็จ", text: "กรุณาลองใหม่อีกครั้ง หรือเลือกภาพอื่น", confirmButtonColor: "#0284c7" });
   });
 }
 
 function closeCropModal(){
-  if(cropperInstance){ cropperInstance.destroy(); cropperInstance=null; }
-  cropModal.style.display="none";
-  cropImage.src="";
-  cameraFileInput.value="";
-  galleryFileInput.value="";
+  if(cropperInstance){ cropperInstance.destroy(); cropperInstance = null; }
+  cropModal.style.display = "none";
+  cropImage.src = "";
+  galleryFileInput.value = "";
 }
 
-cropCancelBtn.addEventListener("click",closeCropModal);
+cropCancelBtn.addEventListener("click", closeCropModal);
 
-cropConfirmBtn.addEventListener("click",()=>{
+cropConfirmBtn.addEventListener("click", () => {
   if(!cropperInstance) return;
 
-  loadingText.innerText="กำลังประมวลผลการตัดภาพ...";
-  loadingOverlay.style.display="flex";
+  loadingText.innerText = "กำลังประมวลผลการตัดภาพ...";
+  loadingOverlay.style.display = "flex";
 
-  setTimeout(()=>{
+  setTimeout(() => {
     try{
-      const canvas=cropperInstance.getCroppedCanvas({
-        maxWidth:1600,
-        maxHeight:1600,
-        imageSmoothingQuality:"high"
+      const canvas = cropperInstance.getCroppedCanvas({
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageSmoothingQuality: "high"
       });
 
       if(!canvas){
-        loadingOverlay.style.display="none";
-        Swal.fire({icon:"error",title:"ครอบภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
+        loadingOverlay.style.display = "none";
+        Swal.fire({ icon: "error", title: "ครอบภาพไม่สำเร็จ", text: "กรุณาลองใหม่อีกครั้ง", confirmButtonColor: "#0284c7" });
         return;
       }
 
-      canvas.toBlob(blob=>{
+      canvas.toBlob(blob => {
         if(!blob){
-          loadingOverlay.style.display="none";
+          loadingOverlay.style.display = "none";
           return;
         }
-        const file=new File([blob],"cropped-document.jpg",{type:"image/jpeg"});
+        const file = new File([blob], "cropped-document.jpg", { type: "image/jpeg" });
         closeCropModal();
         handleFileSelect(file);
-      },"image/jpeg",.9);
+      }, "image/jpeg", 0.9);
 
     }catch(err){
-      console.error("Crop error:",err);
-      loadingOverlay.style.display="none";
-      Swal.fire({icon:"error",title:"เกิดข้อผิดพลาดในการตัดภาพ",text:err.message,confirmButtonColor:"#0284c7"});
+      console.error("Crop error:", err);
+      loadingOverlay.style.display = "none";
+      Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาดในการตัดภาพ", text: err.message, confirmButtonColor: "#0284c7" });
     }
-  },50);
+  }, 50);
 });
 
 async function handleFileSelect(file){
   if(!file || !file.type.startsWith("image/")){
-    Swal.fire({icon:"warning",title:"ไฟล์ไม่ใช่รูปภาพ",text:"กรุณาเลือกไฟล์รูปภาพ",confirmButtonColor:"#0284c7"});
+    Swal.fire({ icon: "warning", title: "ไฟล์ไม่ใช่รูปภาพ", text: "กรุณาเลือกไฟล์รูปภาพ", confirmButtonColor: "#0284c7" });
     return;
   }
 
-  const reader=new FileReader();
-  reader.onload=e=>{
-    imagePreview.src=e.target.result;
-    previewContainer.style.display="block";
+  const reader = new FileReader();
+  reader.onload = e => {
+    imagePreview.src = e.target.result;
+    previewContainer.style.display = "block";
   };
   reader.readAsDataURL(file);
 
-  loadingText.innerText="กำลังสแกนและอ่านข้อมูล...";
-  loadingOverlay.style.display="flex";
+  loadingText.innerText = "กำลังสแกนและอ่านข้อมูล...";
+  loadingOverlay.style.display = "flex";
 
   try{
-    const base64Image=await resizeImage(file,1200,0.75);
+    const base64Image = await resizeImage(file, 1200, 0.75);
 
-    const res=await fetch(GAS_WEB_APP_URL,{
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({action:"ocr_scan",imageBase64:base64Image})
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "ocr_scan", imageBase64: base64Image })
     });
 
-    const result=await res.json();
+    const result = await res.json();
 
-    if(result.status!=="success"){
+    if(result.status !== "success"){
       throw new Error(result.message || "OCR failed");
     }
 
     if(result.data){
-      const extracted=result.data;
-      let filledCount=0;
+      const extracted = result.data;
+      let filledCount = 0;
 
-      if(extracted.fullName){document.getElementById("fullName").value=extracted.fullName;filledCount++;}
-      if(extracted.hn){document.getElementById("hn").value=String(extracted.hn).replace(/\D/g,"").padStart(9,"0").slice(-9);filledCount++;}
-      if(extracted.age){document.getElementById("age").value=extracted.age;filledCount++;}
-      if(extracted.phone){document.getElementById("phone").value=String(extracted.phone).replace(/\D/g,"");filledCount++;}
+      if(extracted.fullName){ document.getElementById("fullName").value = extracted.fullName; filledCount++; }
+      if(extracted.hn){ document.getElementById("hn").value = String(extracted.hn).replace(/\D/g,"").padStart(9,"0").slice(-9); filledCount++; }
+      if(extracted.age){ document.getElementById("age").value = extracted.age; filledCount++; }
+      if(extracted.phone){ document.getElementById("phone").value = String(extracted.phone).replace(/\D/g,""); filledCount++; }
 
-      let isNonUC=false;
+      let isNonUC = false;
       if(extracted.rights){
-        if(extracted.rights==="บัตรทอง (UC)"){
-          rightsSelect.value="บัตรทอง (UC)";filledCount++;
+        if(extracted.rights === "บัตรทอง (UC)"){
+          rightsSelect.value = "บัตรทอง (UC)"; filledCount++;
         }else{
-          isNonUC=true;rightsSelect.value="";
+          isNonUC = true; rightsSelect.value = "";
         }
       }
 
       if(isNonUC){
         alertUCOnly();
-      }else if(filledCount>0){
+      }else if(filledCount > 0){
         Swal.fire({
-          icon:"success",title:"ดึงข้อมูลสำเร็จ",
-          text:"ระบบเติมข้อมูลจากภาพถ่ายให้เรียบร้อย กรุณาตรวจทานความถูกต้อง",
-          confirmButtonColor:"#0284c7",confirmButtonText:"ตกลง"
+          icon: "success", title: "ดึงข้อมูลสำเร็จ",
+          text: "ระบบเติมข้อมูลจากภาพถ่ายให้เรียบร้อย กรุณาตรวจทานความถูกต้อง",
+          confirmButtonColor: "#0284c7", confirmButtonText: "ตกลง"
         });
       }else{
         Swal.fire({
-          icon:"info",title:"ไม่พบข้อมูลที่ต้องการ",
-          text:"ระบบอ่านภาพแล้ว แต่ไม่พบข้อมูลที่ตรงกับช่องในแบบฟอร์ม กรุณากรอกข้อมูลด้วยตนเอง",
-          confirmButtonColor:"#0284c7",confirmButtonText:"ตกลง"
+          icon: "info", title: "ไม่พบข้อมูลที่ต้องการ",
+          text: "ระบบอ่านภาพแล้ว แต่ไม่พบข้อมูลที่ตรงกับช่องในแบบฟอร์ม กรุณากรอกข้อมูลด้วยตนเอง",
+          confirmButtonColor: "#0284c7", confirmButtonText: "ตกลง"
         });
       }
     }
   }catch(err){
-    console.error("OCR Error:",err);
+    console.error("OCR Error:", err);
     Swal.fire({
-      icon:"error",title:"อ่านข้อมูลจากภาพไม่สำเร็จ",
-      text:err.message || "กรุณากรอกข้อมูลด้วยตนเอง",
-      confirmButtonColor:"#0284c7",confirmButtonText:"ตกลง"
+      icon: "error", title: "อ่านข้อมูลจากภาพไม่สำเร็จ",
+      text: err.message || "กรุณากรอกข้อมูลด้วยตนเอง",
+      confirmButtonColor: "#0284c7", confirmButtonText: "ตกลง"
     });
   }finally{
-    loadingOverlay.style.display="none";
-    cameraFileInput.value="";
-    galleryFileInput.value="";
+    loadingOverlay.style.display = "none";
+    galleryFileInput.value = "";
   }
 }
 
-function resizeImage(file,maxDimension,quality=0.8){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=event=>{
-      const img=new Image();
-      img.onload=()=>{
-        let width=img.width,height=img.height;
-        if(width>height){
-          if(width>maxDimension){height=Math.round(height*maxDimension/width);width=maxDimension;}
+function resizeImage(file, maxDimension, quality = 0.8){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width, height = img.height;
+        if(width > height){
+          if(width > maxDimension){ height = Math.round(height * maxDimension / width); width = maxDimension; }
         }else{
-          if(height>maxDimension){width=Math.round(width*maxDimension/height);height=maxDimension;}
+          if(height > maxDimension){ width = Math.round(width * maxDimension / height); height = maxDimension; }
         }
-        const canvas=document.createElement("canvas");
-        canvas.width=width;canvas.height=height;
-        const ctx=canvas.getContext("2d");
-        ctx.drawImage(img,0,0,width,height);
-        resolve(canvas.toDataURL("image/jpeg",quality));
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
-      img.onerror=reject;
-      img.src=event.target.result;
+      img.onerror = reject;
+      img.src = event.target.result;
     };
-    reader.onerror=reject;
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
-form.addEventListener("submit",async e=>{
+form.addEventListener("submit", async e => {
   e.preventDefault();
 
-  if(rightsSelect.value!=="บัตรทอง (UC)"){alertUCOnly();return;}
+  if(rightsSelect.value !== "บัตรทอง (UC)"){ alertUCOnly(); return; }
 
-  const hnVal=document.getElementById("hn").value.trim();
+  const hnVal = document.getElementById("hn").value.trim();
   if(!/^\d{9}$/.test(hnVal)){
-    Swal.fire({icon:"warning",title:"เลข HN ไม่ถูกต้อง",text:"กรุณากรอกเลข HN ให้เป็นตัวเลขครบ 9 หลัก",confirmButtonColor:"#0284c7"});
+    Swal.fire({ icon: "warning", title: "เลข HN ไม่ถูกต้อง", text: "กรุณากรอกเลข HN ให้เป็นตัวเลขครบ 9 หลัก", confirmButtonColor: "#0284c7" });
     return;
   }
 
   if(!indicationSelect.value){
-    Swal.fire({icon:"warning",title:"ข้อมูลไม่ครบถ้วน",text:"กรุณาเลือกข้อบ่งชี้ 1 ข้อ",confirmButtonColor:"#0284c7"});
+    Swal.fire({ icon: "warning", title: "ข้อมูลไม่ครบถ้วน", text: "กรุณาเลือกข้อบ่งชี้ 1 ข้อ", confirmButtonColor: "#0284c7" });
     return;
   }
 
-  const payload={
-    userId:lineProfile.userId||"",
-    displayName:lineProfile.displayName||"Web Browser",
-    fullName:document.getElementById("fullName").value.trim(),
-    hn:hnVal,
-    age:document.getElementById("age").value,
-    rights:rightsSelect.value,
-    indication:indicationSelect.value,
-    phone:document.getElementById("phone").value.trim(),
-    setting:settingSelect.value,
-    ward:settingSelect.value==="IPD"?wardInput.value.trim():""
+  const payload = {
+    userId: lineProfile.userId || "",
+    displayName: lineProfile.displayName || "Web Browser",
+    fullName: document.getElementById("fullName").value.trim(),
+    hn: hnVal,
+    age: document.getElementById("age").value,
+    rights: rightsSelect.value,
+    indication: indicationSelect.value,
+    phone: document.getElementById("phone").value.trim(),
+    setting: settingSelect.value,
+    ward: settingSelect.value === "IPD" ? wardInput.value.trim() : ""
   };
 
-  submitBtn.disabled=true;
-  loadingText.innerText="กำลังบันทึกข้อมูล...";
-  loadingOverlay.style.display="flex";
+  submitBtn.disabled = true;
+  loadingText.innerText = "กำลังบันทึกข้อมูล...";
+  loadingOverlay.style.display = "flex";
 
   try{
-    const res=await fetch(GAS_WEB_APP_URL,{
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify(payload)
+    const res = await fetch(GAS_WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
     });
-    const result=await res.json();
+    const result = await res.json();
 
-    if(result.status!=="ok"){
+    if(result.status !== "ok"){
       throw new Error(result.message || "บันทึกข้อมูลไม่สำเร็จ");
     }
 
-    document.querySelector(".form-container").style.display="none";
-    document.querySelector(".app-header").style.display="none";
-    document.getElementById("successScreen").style.display="block";
+    document.querySelector(".form-container").style.display = "none";
+    document.querySelector(".app-header").style.display = "none";
+    document.getElementById("successScreen").style.display = "block";
   }catch(err){
-    console.error("Submit error",err);
-    Swal.fire({icon:"error",title:"เกิดข้อผิดพลาด",text:err.message||"ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
-    submitBtn.disabled=false;
+    console.error("Submit error", err);
+    Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message || "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", confirmButtonColor: "#0284c7" });
+    submitBtn.disabled = false;
   }finally{
-    loadingOverlay.style.display="none";
+    loadingOverlay.style.display = "none";
   }
 });
+
+window.addEventListener("pagehide", stopCamera);
 </script>
 </body>
 </html>
