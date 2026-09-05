@@ -174,7 +174,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
 <script>
 const LIFF_ID = "2011323423-D42WYaU4";
-const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxE7Hmo10L546-xwTXAjW1kZrr8Rxp0t-HvQZNGs6SWcNaCAsjvssAMBU1yebzCw-LE/exec";
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyoi0iuaSOxG45MdA_xRwXhn4RAzFygcot7_K3c-Bi_fodzvhN2ymxeG2o0e7_LVf8Z/exec";
 
 let lineProfile = { userId:"", displayName:"" };
 let cameraStream = null;
@@ -302,7 +302,7 @@ async function switchCamera(){
 function captureCamera(){
   if(!cameraStream || !cameraVideo.videoWidth) return;
 
-  const maxDimension=2048;
+  const maxDimension=1600;
   let width=cameraVideo.videoWidth;
   let height=cameraVideo.videoHeight;
 
@@ -347,7 +347,7 @@ async function handleFileSelect(file){
   loadingOverlay.style.display="flex";
 
   try{
-    const base64Image=await resizeImage(file,2048);
+    const base64Image=await resizeImage(file,1600);
 
     const res=await fetch(GAS_WEB_APP_URL,{
       method:"POST",
