@@ -6,6 +6,8 @@
 <title>ระบบ Admit Home Ward รพ.สุโขทัย</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -50,6 +52,16 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
 #cameraCanvas{display:none}
+
+/* Crop modal */
+#cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
+#cropImageWrap{flex:1;position:relative;overflow:hidden;background:#000}
+#cropImage{display:block;max-width:100%}
+.crop-ui{padding:14px 18px calc(14px + env(safe-area-inset-bottom));display:flex;gap:10px;background:#111}
+.crop-btn{flex:1;padding:12px;border:0;border-radius:10px;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+.crop-btn-cancel{background:#334155;color:#fff}
+.crop-btn-confirm{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff}
+.crop-hint{color:#e2e8f0;font-size:12.5px;text-align:center;padding:10px 16px 0;background:#111}
 </style>
 </head>
 
@@ -172,6 +184,17 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
+<div id="cropModal">
+  <div class="crop-hint">ลากกรอบให้พอดีกับใบเอกสาร แล้วกดยืนยัน</div>
+  <div id="cropImageWrap">
+    <img id="cropImage" alt="ครอปภาพ">
+  </div>
+  <div class="crop-ui">
+    <button type="button" class="crop-btn crop-btn-cancel" id="cropCancelBtn">ยกเลิก</button>
+    <button type="button" class="crop-btn crop-btn-confirm" id="cropConfirmBtn">ยืนยันครอบภาพ</button>
+  </div>
+</div>
+
 <script>
 const LIFF_ID = "2011323423-D42WYaU4";
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
@@ -220,6 +243,12 @@ const closeCameraBtn=document.getElementById("closeCameraBtn");
 const captureCameraBtn=document.getElementById("captureCameraBtn");
 const switchCameraBtn=document.getElementById("switchCameraBtn");
 
+const cropModal=document.getElementById("cropModal");
+const cropImage=document.getElementById("cropImage");
+const cropCancelBtn=document.getElementById("cropCancelBtn");
+const cropConfirmBtn=document.getElementById("cropConfirmBtn");
+let cropperInstance=null;
+
 function alertUCOnly(){
   Swal.fire({
     icon:"warning",title:"แจ้งเตือนสิทธิ์การรักษา",
@@ -243,7 +272,7 @@ settingSelect.addEventListener("change",e=>{
 });
 
 galleryFileInput.addEventListener("change",function(){
-  if(this.files && this.files[0]) handleFileSelect(this.files[0]);
+  if(this.files && this.files[0]) openCropModal(this.files[0]);
 });
 
 async function openCamera(){
@@ -302,7 +331,7 @@ async function switchCamera(){
 function captureCamera(){
   if(!cameraStream || !cameraVideo.videoWidth) return;
 
-  const maxDimension=1600;
+  const maxDimension=2400;
   let width=cameraVideo.videoWidth;
   let height=cameraVideo.videoHeight;
 
@@ -321,7 +350,7 @@ function captureCamera(){
     if(!blob) return;
     const file=new File([blob],"camera-capture.jpg",{type:"image/jpeg"});
     closeCamera();
-    await handleFileSelect(file);
+    openCropModal(file);
   },"image/jpeg",.9);
 }
 
@@ -329,6 +358,60 @@ openCameraBtn.addEventListener("click",openCamera);
 closeCameraBtn.addEventListener("click",closeCamera);
 captureCameraBtn.addEventListener("click",captureCamera);
 switchCameraBtn.addEventListener("click",switchCamera);
+
+function openCropModal(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    cropImage.src=e.target.result;
+    cropModal.style.display="flex";
+
+    if(cropperInstance) cropperInstance.destroy();
+    cropperInstance=new Cropper(cropImage,{
+      viewMode:1,
+      autoCropArea:0.92,
+      background:false,
+      dragMode:"move",
+      guides:true,
+      responsive:true,
+      toggleDragModeOnDblclick:false
+    });
+  };
+  reader.onerror=()=>{
+    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
+  };
+  reader.readAsDataURL(file);
+}
+
+function closeCropModal(){
+  if(cropperInstance){ cropperInstance.destroy(); cropperInstance=null; }
+  cropModal.style.display="none";
+  cropImage.src="";
+  galleryFileInput.value="";
+}
+
+cropCancelBtn.addEventListener("click",closeCropModal);
+
+cropConfirmBtn.addEventListener("click",()=>{
+  if(!cropperInstance) return;
+
+  const canvas=cropperInstance.getCroppedCanvas({
+    maxWidth:2400,
+    maxHeight:2400,
+    imageSmoothingQuality:"high"
+  });
+
+  if(!canvas){
+    Swal.fire({icon:"error",title:"ครอบภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
+    return;
+  }
+
+  canvas.toBlob(blob=>{
+    if(!blob) return;
+    const file=new File([blob],"cropped-document.jpg",{type:"image/jpeg"});
+    closeCropModal();
+    handleFileSelect(file);
+  },"image/jpeg",.92);
+});
 
 async function handleFileSelect(file){
   if(!file || !file.type.startsWith("image/")){
