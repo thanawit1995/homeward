@@ -47,16 +47,58 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 /* Camera modal */
 #cameraModal{display:none;position:fixed;inset:0;background:#000;z-index:3000;flex-direction:column}
 #cameraVideo{width:100%;height:100%;object-fit:cover;background:#000}
-.camera-ui{position:absolute;left:0;right:0;bottom:0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.camera-ui{position:absolute;left:0;right:0;bottom:0;padding:16px 18px calc(16px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.85))}
 .camera-btn{border:0;border-radius:999px;cursor:pointer;font-family:inherit;font-weight:600}
-.camera-close{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:22px}
+.camera-close{width:48px;height:48px;background:rgba(255,255,255,.2);color:#fff;font-size:22px}
 .camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
-.camera-switch{width:48px;height:48px;background:rgba(255,255,255,.18);color:#fff;font-size:20px}
 #cameraCanvas{display:none}
 
-.zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
-.zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.zoom-control input[type=range]{flex:1;accent-color:#fff}
+/* แถบปุ่มแยกเลนส์แต่ละตัว (เลนส์ 1, เลนส์ 2, เลนส์ 3... และกล้องหน้า) */
+.lens-bar-container{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:98px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  overflow-x:auto;
+  z-index:20;
+}
+.lens-btn{
+  background:rgba(15,23,42,.75);
+  color:#f8fafc;
+  border:1.5px solid rgba(255,255,255,.4);
+  border-radius:16px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  white-space:nowrap;
+  backdrop-filter:blur(6px);
+  transition:all .15s ease;
+}
+.lens-btn.active{
+  background:#0284c7;
+  border-color:#38bdf8;
+  color:#fff;
+  box-shadow:0 0 10px rgba(56,189,248,.6);
+  transform:scale(1.05);
+}
+.lens-indicator{
+  position:absolute;
+  top:14px;
+  left:0;
+  right:0;
+  text-align:center;
+  color:#fff;
+  font-size:12px;
+  font-weight:600;
+  text-shadow:0 1px 3px rgba(0,0,0,.7);
+  z-index:10;
+}
 
 /* Crop modal & Guide Box */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
@@ -184,20 +226,19 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
-<!-- Modal กล้องสด (ควบคุมเลนส์ Wide และระยะซูมได้จริง) -->
+<!-- Modal กล้องสด พร้อมปุ่มแยกเลนส์ 1, 2, 3, 4 และ กล้องหน้า -->
 <div id="cameraModal">
   <video id="cameraVideo" autoplay playsinline muted></video>
   <canvas id="cameraCanvas"></canvas>
+  <div class="lens-indicator" id="lensIndicator">กำลังเปิดกล้อง...</div>
 
-  <div class="zoom-control" id="zoomControl" style="display:none;">
-    <span class="zoom-label" id="zoomLabel">1.0x</span>
-    <input type="range" id="zoomSlider" step="0.1">
-  </div>
+  <!-- แถบปุ่มเลือกเลนส์แยกชัดเจน -->
+  <div class="lens-bar-container" id="lensBarContainer"></div>
 
   <div class="camera-ui">
     <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
     <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
-    <button type="button" class="camera-btn camera-switch" id="switchCameraBtn" title="สลับกล้องหน้า/หลัง">📷⇄</button>
+    <div style="width:48px;"></div> <!-- ตัวคั่นสมดุล -->
   </div>
 </div>
 
@@ -228,7 +269,8 @@ const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuC
 
 let lineProfile = { userId:"", displayName:"" };
 let cameraStream = null;
-let currentFacingMode = "environment";
+let allCameraDevices = [];
+let activeDeviceId = null;
 
 async function initLiff(){
   try{
@@ -268,10 +310,8 @@ const cameraCanvas=document.getElementById("cameraCanvas");
 const openCameraBtn=document.getElementById("openCameraBtn");
 const closeCameraBtn=document.getElementById("closeCameraBtn");
 const captureCameraBtn=document.getElementById("captureCameraBtn");
-const switchCameraBtn=document.getElementById("switchCameraBtn");
-const zoomControl=document.getElementById("zoomControl");
-const zoomSlider=document.getElementById("zoomSlider");
-const zoomLabel=document.getElementById("zoomLabel");
+const lensBarContainer=document.getElementById("lensBarContainer");
+const lensIndicator=document.getElementById("lensIndicator");
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -282,7 +322,6 @@ const cropExampleBox=document.getElementById("cropExampleBox");
 const cropExampleImage=document.getElementById("cropExampleImage");
 let cropperInstance=null;
 
-// ป้องกันแคชค้างรูปตัวอย่าง
 cropExampleImage.src = "./sample-crop.jpg?t=" + new Date().getTime();
 cropExampleImage.onerror = function() {
   this.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' width='100%' height='100%'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='15' y='15' width='390' height='150' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='2' rx='6'/><rect x='24' y='24' width='280' height='105' fill='rgba(56,189,248,0.22)' stroke='%230284c7' stroke-width='3' stroke-dasharray='5' rx='4'/><text x='34' y='48' font-family='sans-serif' font-size='15' font-weight='bold' fill='%230f172a'>ใบนำทางผู้ป่วยนอก</text><text x='34' y='72' font-family='sans-serif' font-size='12' fill='%23334155'>HN : 000xxxxxx</text><text x='34' y='92' font-family='sans-serif' font-size='12' fill='%23334155'>ชื่อ : นาย... อายุ 56 ปี</text><text x='34' y='112' font-family='sans-serif' font-size='12' fill='%23334155'>สิทธิ : ชำระเงินเอง โทร : 092xxxxxxx</text><text x='316' y='52' font-family='sans-serif' font-size='16' font-weight='bold' fill='%230f172a'>1617</text><text x='316' y='88' font-family='sans-serif' font-size='12' font-weight='bold' fill='%23ef4444'>❌ ไม่ต้องครอบ</text><text x='316' y='108' font-family='sans-serif' font-size='10.5' fill='%2364748b'>ส่วนตาราง/กราฟล่าง</text></svg>";
@@ -314,102 +353,110 @@ galleryFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
-// ⚡ เปิดกล้องและล็อกเลนส์ Wide มุมกว้างที่สุดเสมอ
-async function startCameraStream(facingMode) {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-
-  // 1. ตรวจหาเลนส์กล้องหลังมุมกว้าง (Wide/Ultra-Wide)
-  let bestDeviceId = null;
-  try {
+// ค้นหากล้องทั้งหมดในเครื่อง แยกเลนส์หลังและกล้องหน้า
+async function fetchAllCameras(){
+  try{
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === "videoinput");
-    const backCameras = videoDevices.filter(d => /back|rear|environment/i.test(d.label));
+    const videoDevs = devices.filter(d => d.kind === "videoinput");
     
-    // ค้นหาเลนส์ที่มีคำว่า wide หรือ 0.5x หรือเลือกตัวแรก
-    const wideCam = backCameras.find(d => /wide|ultra/i.test(d.label));
-    if (wideCam) {
-      bestDeviceId = wideCam.deviceId;
-    } else if (backCameras.length > 0) {
-      bestDeviceId = backCameras[0].deviceId;
-    }
-  } catch (_) {}
+    let backCount = 1;
+    allCameraDevices = videoDevs.map(dev => {
+      const label = (dev.label || "").toLowerCase();
+      const isFront = /front|user|selfie/i.test(label);
+      let title = "";
+      if (isFront) {
+        title = "🤳 กล้องหน้า";
+      } else {
+        title = `เลนส์ ${backCount}`;
+        backCount++;
+      }
+      return {
+        deviceId: dev.deviceId,
+        title: title,
+        isFront: isFront
+      };
+    });
+  }catch(err){
+    console.warn("enumerateDevices error:", err);
+  }
+}
 
-  const videoConstraints = {
-    width: { ideal: 1920 },
-    height: { ideal: 1080 }
+// สร้างปุ่มเลือกเลนส์แบบไดนามิกตามอุปกรณ์จริง
+function renderLensButtons(){
+  lensBarContainer.innerHTML = "";
+  if(allCameraDevices.length <= 1) return;
+
+  allCameraDevices.forEach((cam) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lens-btn" + (cam.deviceId === activeDeviceId ? " active" : "");
+    btn.textContent = cam.title;
+    btn.addEventListener("click", () => switchCameraTo(cam.deviceId, cam.title));
+    lensBarContainer.appendChild(btn);
+  });
+}
+
+// สลับไปยังเลนส์ที่เลือกทันที
+async function switchCameraTo(deviceId, title){
+  if(activeDeviceId === deviceId && cameraStream) return;
+  lensIndicator.textContent = "กำลังสลับไป " + title + "...";
+  await startVideoStream({ deviceId: { exact: deviceId } });
+  activeDeviceId = deviceId;
+  lensIndicator.textContent = "กำลังใช้: " + title;
+  renderLensButtons();
+}
+
+// รันสตรีมกล้อง
+async function startVideoStream(videoConstraints){
+  const oldStream = cameraStream;
+  const constraints = {
+    video: Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } }, videoConstraints),
+    audio: false
   };
 
-  if (bestDeviceId && facingMode === "environment") {
-    videoConstraints.deviceId = { exact: bestDeviceId };
-  } else {
-    videoConstraints.facingMode = { ideal: facingMode };
+  cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+  
+  if(oldStream){
+    oldStream.getTracks().forEach(track => track.stop());
   }
-
-  cameraStream = await navigator.mediaDevices.getUserMedia({
-    video: videoConstraints,
-    audio: false
-  });
 
   cameraVideo.srcObject = cameraStream;
   await cameraVideo.play();
-
-  // 2. ปรับระยะซูมไปที่ค่าต่ำสุด (เช่น 0.5x, 0.6x หรือ 1.0x) ทันที
-  await forceUltraWideZoom();
 }
 
-async function forceUltraWideZoom() {
-  zoomControl.style.display = "none";
-  if (!cameraStream) return;
-
-  const track = cameraStream.getVideoTracks()[0];
-  if (!track || typeof track.getCapabilities !== "function") return;
-
-  let caps;
-  try { caps = track.getCapabilities(); } catch (e) { return; }
-  if (!caps || !caps.zoom) return;
-
-  const minZoom = caps.zoom.min ?? 1;
-  const maxZoom = caps.zoom.max ?? 1;
-
-  // ตั้งค่าไปที่ระยะกว้างสุดเสมอ
-  try {
-    await track.applyConstraints({ advanced: [{ zoom: minZoom }] });
-  } catch (_) {}
-
-  if (maxZoom > minZoom) {
-    zoomSlider.min = minZoom;
-    zoomSlider.max = maxZoom;
-    zoomSlider.step = caps.zoom.step || 0.1;
-    zoomSlider.value = minZoom;
-    zoomLabel.textContent = minZoom.toFixed(1) + "x";
-    zoomControl.style.display = "flex";
-  }
-}
-
-zoomSlider.addEventListener("input", async () => {
-  if (!cameraStream) return;
-  const track = cameraStream.getVideoTracks()[0];
-  if (!track) return;
-  const val = parseFloat(zoomSlider.value);
-  zoomLabel.textContent = val.toFixed(1) + "x";
-  try { await track.applyConstraints({ advanced: [{ zoom: val }] }); } catch (_) {}
-});
-
+// เปิดกล้องครั้งแรก
 async function openCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    Swal.fire({icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",text:"กรุณาเลือกภาพจากอัลบั้ม",confirmButtonColor:"#0284c7"});
+    Swal.fire({
+      icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",
+      text:"กรุณาเปิดผ่านเบราว์เซอร์ที่รองรับ หรือเลือกภาพจากอัลบั้ม",
+      confirmButtonColor:"#0284c7"
+    });
     return;
   }
 
   try{
     cameraModal.style.display = "flex";
-    currentFacingMode = "environment";
-    await startCameraStream(currentFacingMode);
+    lensIndicator.textContent = "กำลังเปิดกล้อง...";
+
+    // 1. เปิดกล้องเริ่มต้นเพื่อขอสิทธิ์
+    await startVideoStream({ facingMode: { ideal: "environment" } });
+    
+    // 2. ดึงข้อมูลอุปกรณ์กล้องทั้งหมด
+    await fetchAllCameras();
+
+    // ดึง ID ของกล้องที่กำลังใช้งาน
+    const track = cameraStream.getVideoTracks()[0];
+    const settings = track.getSettings ? track.getSettings() : {};
+    activeDeviceId = settings.deviceId || (allCameraDevices[0] ? allCameraDevices[0].deviceId : null);
+
+    const activeCam = allCameraDevices.find(c => c.deviceId === activeDeviceId);
+    lensIndicator.textContent = "กำลังใช้: " + (activeCam ? activeCam.title : "กล้องหลัก");
+    
+    renderLensButtons();
+
   }catch(err){
-    console.error("Camera open error:", err);
+    console.error("Camera error:", err);
     closeCamera();
     Swal.fire({
       icon:"error",title:"ไม่สามารถเปิดกล้องได้",
@@ -425,21 +472,11 @@ function stopCamera(){
     cameraStream = null;
   }
   cameraVideo.srcObject = null;
-  zoomControl.style.display = "none";
 }
 
 function closeCamera(){
   stopCamera();
   cameraModal.style.display = "none";
-}
-
-async function toggleFrontBackCamera(){
-  try{
-    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-    await startCameraStream(currentFacingMode);
-  }catch(err){
-    console.warn("Toggle camera error:", err);
-  }
 }
 
 function captureCamera(){
@@ -471,7 +508,6 @@ function captureCamera(){
 openCameraBtn.addEventListener("click", openCamera);
 closeCameraBtn.addEventListener("click", closeCamera);
 captureCameraBtn.addEventListener("click", captureCamera);
-switchCameraBtn.addEventListener("click", toggleFrontBackCamera);
 
 toggleExampleBtn.addEventListener("click", () => {
   const isHidden = cropExampleBox.style.display === "none" || !cropExampleBox.style.display;
@@ -506,7 +542,7 @@ async function prepareFileForCrop(file){
     console.error("HEIC convert error:", err);
     Swal.fire({
       icon:"error",title:"แปลงไฟล์ภาพไม่สำเร็จ",
-      text:"ไฟล์ภาพนี้เป็นชนิด HEIC กรุณาถ่ายใหม่ผ่านปุ่มในหน้านี้แทน",
+      text:"ไฟล์ภาพนี้เป็นชนิด HEIC/HEIF กรุณาถ่ายรูปใหม่หรือเปลี่ยนการตั้งค่ากล้องเป็น JPEG",
       confirmButtonColor:"#0284c7"
     });
   }finally{
