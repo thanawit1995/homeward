@@ -56,6 +56,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .zoom-control{position:absolute;left:0;right:0;bottom:118px;padding:0 24px;display:flex;align-items:center;gap:10px;z-index:10}
 .zoom-label{color:#fff;font-size:12.5px;font-weight:600;min-width:34px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .zoom-control input[type=range]{flex:1;accent-color:#fff}
+.lens-indicator{position:absolute;top:14px;left:0;right:0;text-align:center;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:10}
 
 /* Crop modal */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
@@ -185,6 +186,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
     <span class="zoom-label" id="zoomLabel">1.0x</span>
     <input type="range" id="zoomSlider" step="0.1">
   </div>
+  <div class="lens-indicator" id="lensIndicator" style="display:none;"></div>
   <div class="camera-ui">
     <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
     <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
@@ -253,7 +255,11 @@ const switchCameraBtn=document.getElementById("switchCameraBtn");
 const zoomControl=document.getElementById("zoomControl");
 const zoomSlider=document.getElementById("zoomSlider");
 const zoomLabel=document.getElementById("zoomLabel");
+const lensIndicator=document.getElementById("lensIndicator");
 let zoomCapable=false;
+let backCameraDevices=[];
+let backCameraIndex=0;
+let devicesEnumerated=false;
 
 const cropModal=document.getElementById("cropModal");
 const cropImage=document.getElementById("cropImage");
@@ -300,18 +306,38 @@ async function openCamera(){
   try{
     stopCamera();
     cameraModal.style.display="flex";
-    cameraStream=await navigator.mediaDevices.getUserMedia({
-      video:{
+
+    let videoConstraints;
+    if(cameraFacingMode==="environment" && backCameraDevices.length>0){
+      videoConstraints={
+        deviceId:{exact:backCameraDevices[backCameraIndex].deviceId},
+        width:{ideal:1920},
+        height:{ideal:1080},
+        zoom:{ideal:1}
+      };
+    }else{
+      videoConstraints={
         facingMode:{ideal:cameraFacingMode},
         width:{ideal:1920},
         height:{ideal:1080},
         zoom:{ideal:1}
-      },
+      };
+    }
+
+    cameraStream=await navigator.mediaDevices.getUserMedia({
+      video:videoConstraints,
       audio:false
     });
     cameraVideo.srcObject=cameraStream;
     await cameraVideo.play();
     await setupZoomControl();
+
+    if(cameraFacingMode==="environment"){
+      await enumerateBackCameras();
+      updateLensIndicator();
+    }else{
+      lensIndicator.style.display="none";
+    }
   }catch(err){
     console.error("Camera error:",err);
     stopCamera();
@@ -331,6 +357,7 @@ function stopCamera(){
   }
   cameraVideo.srcObject=null;
   zoomControl.style.display="none";
+  lensIndicator.style.display="none";
   zoomCapable=false;
 }
 
@@ -389,8 +416,44 @@ function closeCamera(){
   cameraModal.style.display="none";
 }
 
+async function enumerateBackCameras(){
+  if(devicesEnumerated) return;
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    backCameraDevices=devices.filter(d=>
+      d.kind==="videoinput" && /back|rear|environment/i.test(d.label)
+    );
+    devicesEnumerated=true;
+  }catch(e){
+    console.warn("enumerateDevices failed:",e);
+  }
+}
+
+function updateLensIndicator(){
+  if(backCameraDevices.length>1){
+    lensIndicator.textContent=
+      "เลนส์ " + (backCameraIndex+1) + "/" + backCameraDevices.length +
+      " (แตะ ↻ เพื่อลองเลนส์อื่น)";
+    lensIndicator.style.display="block";
+  }else{
+    lensIndicator.style.display="none";
+  }
+}
+
 async function switchCamera(){
-  cameraFacingMode=cameraFacingMode==="environment"?"user":"environment";
+  if(cameraFacingMode==="environment"){
+    await enumerateBackCameras();
+
+    if(backCameraDevices.length>1 && backCameraIndex<backCameraDevices.length-1){
+      backCameraIndex++;
+    }else{
+      cameraFacingMode="user";
+      backCameraIndex=0;
+    }
+  }else{
+    cameraFacingMode="environment";
+    backCameraIndex=0;
+  }
   await openCamera();
 }
 
