@@ -53,7 +53,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .camera-capture{width:68px;height:68px;border:5px solid #fff;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 #cameraCanvas{display:none}
 
-/* แถบปุ่มแยกเลนส์แต่ละตัว (เลนส์ 1, เลนส์ 2, เลนส์ 3... และกล้องหน้า) */
+/* แถบปุ่มแยกเลนส์แต่ละตัว */
 .lens-bar-container{
   position:absolute;
   left:0;
@@ -68,9 +68,9 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   z-index:20;
 }
 .lens-btn{
-  background:rgba(15,23,42,.75);
+  background:rgba(15,23,42,.8);
   color:#f8fafc;
-  border:1.5px solid rgba(255,255,255,.4);
+  border:1.5px solid rgba(255,255,255,.45);
   border-radius:16px;
   padding:6px 12px;
   font-size:12px;
@@ -226,19 +226,19 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
   </div>
 </div>
 
-<!-- Modal กล้องสด พร้อมปุ่มแยกเลนส์ 1, 2, 3, 4 และ กล้องหน้า -->
+<!-- Modal กล้องสด -->
 <div id="cameraModal">
   <video id="cameraVideo" autoplay playsinline muted></video>
   <canvas id="cameraCanvas"></canvas>
   <div class="lens-indicator" id="lensIndicator">กำลังเปิดกล้อง...</div>
 
-  <!-- แถบปุ่มเลือกเลนส์แยกชัดเจน -->
+  <!-- แถบปุ่มแยกเลนส์ -->
   <div class="lens-bar-container" id="lensBarContainer"></div>
 
   <div class="camera-ui">
     <button type="button" class="camera-btn camera-close" id="closeCameraBtn">×</button>
     <button type="button" class="camera-btn camera-capture" id="captureCameraBtn" aria-label="ถ่ายภาพ"></button>
-    <div style="width:48px;"></div> <!-- ตัวคั่นสมดุล -->
+    <div style="width:48px;"></div>
   </div>
 </div>
 
@@ -353,14 +353,15 @@ galleryFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
-// ค้นหากล้องทั้งหมดในเครื่อง แยกเลนส์หลังและกล้องหน้า
+// ค้นหากล้อง พร้อมระบบ Fallback สำหรับ LINE In-App Browser
 async function fetchAllCameras(){
+  allCameraDevices = [];
   try{
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevs = devices.filter(d => d.kind === "videoinput");
     
     let backCount = 1;
-    allCameraDevices = videoDevs.map(dev => {
+    videoDevs.forEach(dev => {
       const label = (dev.label || "").toLowerCase();
       const isFront = /front|user|selfie/i.test(label);
       let title = "";
@@ -370,43 +371,69 @@ async function fetchAllCameras(){
         title = `เลนส์ ${backCount}`;
         backCount++;
       }
-      return {
+      allCameraDevices.push({
         deviceId: dev.deviceId,
         title: title,
-        isFront: isFront
-      };
+        isFront: isFront,
+        fallback: false
+      });
     });
   }catch(err){
     console.warn("enumerateDevices error:", err);
   }
+
+  // หาก LINE บล็อกไม่ยอมคืนรายชื่อกล้อง (พบ <= 1) ให้สร้างปุ่มมาตรฐานขึ้นมาทันที
+  if(allCameraDevices.length <= 1){
+    allCameraDevices = [
+      { deviceId: "back_main", title: "เลนส์หลัก", isFront: false, fallback: true },
+      { deviceId: "back_wide", title: "เลนส์มุมกว้าง (Wide)", isFront: false, fallback: true },
+      { deviceId: "front_cam", title: "🤳 กล้องหน้า", isFront: true, fallback: true }
+    ];
+  }
 }
 
-// สร้างปุ่มเลือกเลนส์แบบไดนามิกตามอุปกรณ์จริง
 function renderLensButtons(){
   lensBarContainer.innerHTML = "";
-  if(allCameraDevices.length <= 1) return;
-
   allCameraDevices.forEach((cam) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "lens-btn" + (cam.deviceId === activeDeviceId ? " active" : "");
     btn.textContent = cam.title;
-    btn.addEventListener("click", () => switchCameraTo(cam.deviceId, cam.title));
+    btn.addEventListener("click", () => switchCameraTo(cam));
     lensBarContainer.appendChild(btn);
   });
 }
 
-// สลับไปยังเลนส์ที่เลือกทันที
-async function switchCameraTo(deviceId, title){
-  if(activeDeviceId === deviceId && cameraStream) return;
-  lensIndicator.textContent = "กำลังสลับไป " + title + "...";
-  await startVideoStream({ deviceId: { exact: deviceId } });
-  activeDeviceId = deviceId;
-  lensIndicator.textContent = "กำลังใช้: " + title;
-  renderLensButtons();
+async function switchCameraTo(cam){
+  lensIndicator.textContent = "กำลังสลับไป " + cam.title + "...";
+  
+  let videoConstraints = {};
+  if(cam.fallback){
+    if(cam.isFront){
+      videoConstraints = { facingMode: { exact: "user" } };
+    } else if(cam.deviceId === "back_wide"){
+      videoConstraints = { 
+        facingMode: { ideal: "environment" },
+        width: { min: 1280, ideal: 1920 } 
+      };
+    } else {
+      videoConstraints = { facingMode: { ideal: "environment" } };
+    }
+  } else {
+    videoConstraints = { deviceId: { exact: cam.deviceId } };
+  }
+
+  try {
+    await startVideoStream(videoConstraints);
+    activeDeviceId = cam.deviceId;
+    lensIndicator.textContent = "กำลังใช้: " + cam.title;
+    renderLensButtons();
+  } catch(err) {
+    console.warn("Switch camera error:", err);
+    lensIndicator.textContent = "ไม่สามารถสลับไปยัง " + cam.title + " ได้";
+  }
 }
 
-// รันสตรีมกล้อง
 async function startVideoStream(videoConstraints){
   const oldStream = cameraStream;
   const constraints = {
@@ -424,12 +451,11 @@ async function startVideoStream(videoConstraints){
   await cameraVideo.play();
 }
 
-// เปิดกล้องครั้งแรก
 async function openCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     Swal.fire({
       icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",
-      text:"กรุณาเปิดผ่านเบราว์เซอร์ที่รองรับ หรือเลือกภาพจากอัลบั้ม",
+      text:"กรุณาเปิดผ่าน Chrome หรือเลือกภาพจากอัลบั้ม",
       confirmButtonColor:"#0284c7"
     });
     return;
@@ -439,13 +465,12 @@ async function openCamera(){
     cameraModal.style.display = "flex";
     lensIndicator.textContent = "กำลังเปิดกล้อง...";
 
-    // 1. เปิดกล้องเริ่มต้นเพื่อขอสิทธิ์
+    // 1. สตรีมกล้องหลังรอบแรกเพื่อขอสิทธิ์ใน LINE
     await startVideoStream({ facingMode: { ideal: "environment" } });
     
-    // 2. ดึงข้อมูลอุปกรณ์กล้องทั้งหมด
+    // 2. ตรวจสอบรายชื่อกล้อง (LINE จะยอมส่งรายชื่อมาตอนนี้)
     await fetchAllCameras();
 
-    // ดึง ID ของกล้องที่กำลังใช้งาน
     const track = cameraStream.getVideoTracks()[0];
     const settings = track.getSettings ? track.getSettings() : {};
     activeDeviceId = settings.deviceId || (allCameraDevices[0] ? allCameraDevices[0].deviceId : null);
@@ -453,6 +478,7 @@ async function openCamera(){
     const activeCam = allCameraDevices.find(c => c.deviceId === activeDeviceId);
     lensIndicator.textContent = "กำลังใช้: " + (activeCam ? activeCam.title : "กล้องหลัก");
     
+    // 3. เรนเดอร์ปุ่มเลนส์แยกชัดเจน
     renderLensButtons();
 
   }catch(err){
