@@ -219,7 +219,6 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
     <button type="button" class="crop-example-toggle" id="toggleExampleBtn">💡 ดูตัวอย่างกรอบที่ควรตัด</button>
   </div>
 
-  <!-- กล่องแสดงภาพตัวอย่างจริงที่แนบมา -->
   <div class="crop-example-box" id="cropExampleBox">
     <img class="crop-example-img" id="cropExampleImage" alt="ตัวอย่างการครอบตัดเอกสาร">
     <div class="crop-example-caption">ตัดเฉพาะแถบกรอบสีฟ้าตามภาพตัวอย่าง ช่วยให้สแกนเร็วและถูกต้องที่สุด</div>
@@ -238,7 +237,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 const LIFF_ID = "2011323423-D42WYaU4";
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
 
-// ภาพตัวอย่างใบนำทางพร้อมกรอบเล็งสีฟ้าที่ผู้ใช้แนบมา
+// ภาพตัวอย่างใบนำทางพร้อมกรอบเล็งสีฟ้า
 const SAMPLE_CROP_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' width='100%' height='100%'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='15' y='15' width='390' height='150' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='2' rx='6'/><rect x='24' y='24' width='280' height='105' fill='rgba(56,189,248,0.22)' stroke='%230284c7' stroke-width='3' stroke-dasharray='5' rx='4'/><text x='34' y='48' font-family='Sarabun,sans-serif' font-size='15' font-weight='bold' fill='%230f172a'>ใบนำทางผู้ป่วยนอก</text><text x='34' y='72' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>HN : 000xxxxxx</text><text x='34' y='92' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>ชื่อ : นาย... อายุ 56 ปี 7 เดือน</text><text x='34' y='112' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>สิทธิ : ชำระเงินเอง / บัตรทอง  โทร : 092xxxxxxx</text><text x='316' y='52' font-family='Sarabun,sans-serif' font-size='16' font-weight='bold' fill='%230f172a'>1617</text><text x='316' y='88' font-family='Sarabun,sans-serif' font-size='12' font-weight='bold' fill='%23ef4444'>❌ ไม่ต้องครอบ</text><text x='316' y='108' font-family='Sarabun,sans-serif' font-size='10.5' fill='%2364748b'>ส่วนตาราง/กราฟล่าง</text><rect x='24' y='136' width='372' height='20' fill='%23f8fafc' stroke='%23e2e8f0'/></svg>";
 
 let lineProfile = { userId:"", displayName:"" };
@@ -302,7 +301,6 @@ const cropExampleBox=document.getElementById("cropExampleBox");
 const cropExampleImage=document.getElementById("cropExampleImage");
 let cropperInstance=null;
 
-// ผูกภาพตัวอย่างจริง
 cropExampleImage.src = SAMPLE_CROP_IMAGE;
 
 function alertUCOnly(){
@@ -331,7 +329,6 @@ galleryFileInput.addEventListener("change",function(){
   if(this.files && this.files[0]) prepareFileForCrop(this.files[0]);
 });
 
-// ตรวจสอบและค้นหาเลนส์กล้องหลัง
 async function enumerateAllCameras(){
   try{
     const devices=await navigator.mediaDevices.enumerateDevices();
@@ -345,7 +342,6 @@ async function enumerateAllCameras(){
   }
 }
 
-// สร้างปุ่มเลือกเลนส์กล้องหลัง
 function renderLensButtons(){
   lensSelectorBar.innerHTML="";
   if(currentMode==="user" || backCameraDevices.length<=1){
@@ -369,7 +365,6 @@ function renderLensButtons(){
   lensIndicator.style.display="block";
 }
 
-// สลับเลนส์โดยตรง ไม่ต้องขอ Permission ใหม่
 async function changeLensDirect(targetDeviceId){
   if(activeDeviceId===targetDeviceId && cameraStream) return;
   activeDeviceId=targetDeviceId;
@@ -378,25 +373,26 @@ async function changeLensDirect(targetDeviceId){
   renderLensButtons();
 }
 
-// รันสตรีมกล้อง
+/* ป้องกัน Permission เด้งซ้ำ โดยไม่ตัด Stream เดิมทิ้งก่อนได้รับ Stream ใหม่ */
 async function startVideoStream(videoConstraints){
-  if(cameraStream){
-    cameraStream.getTracks().forEach(track=>track.stop());
-    cameraStream=null;
-  }
+  const oldStream = cameraStream;
+  const baseConstraints = { width:{ideal:1920}, height:{ideal:1080} };
 
-  const baseConstraints={ width:{ideal:1920}, height:{ideal:1080} };
-  cameraStream=await navigator.mediaDevices.getUserMedia({
-    video:Object.assign(baseConstraints,videoConstraints),
-    audio:false
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: Object.assign(baseConstraints, videoConstraints),
+    audio: false
   });
 
-  cameraVideo.srcObject=cameraStream;
+  if (oldStream) {
+    oldStream.getTracks().forEach(track => track.stop());
+  }
+
+  cameraVideo.srcObject = cameraStream;
   await cameraVideo.play();
   await setupZoomControl();
 }
 
-// เปิดกล้องครั้งแรก (ขอ Permission แค่รอบนี้)
+/* เปิดกล้องครั้งแรก ขอ Permission แค่ครั้งเดียว */
 async function openCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     Swal.fire({icon:"warning",title:"อุปกรณ์ไม่รองรับกล้อง",text:"กรุณาเลือกภาพจากอัลบั้ม",confirmButtonColor:"#0284c7"});
@@ -414,16 +410,14 @@ async function openCamera(){
 
     currentMode="environment";
 
-    // กำหนด Default เลนส์ที่ 3 หากมี 3 เลนส์ขึ้นไป
+    // ตั้งค่า Default ไปที่เลนส์ที่ 3 ทันที (ถ้ามี 3 เลนส์ขึ้นไป)
     if(backCameraDevices.length>=3){
       activeDeviceId=backCameraDevices[2].deviceId;
+      await startVideoStream({deviceId:{exact:activeDeviceId}});
     }else if(backCameraDevices.length>0){
       activeDeviceId=backCameraDevices[0].deviceId;
     }
 
-    if(activeDeviceId){
-      await startVideoStream({deviceId:{exact:activeDeviceId}});
-    }
     renderLensButtons();
 
   }catch(err){
@@ -453,7 +447,6 @@ function closeCamera(){
   cameraModal.style.display="none";
 }
 
-// สลับกล้องหน้า/หลัง
 async function toggleFrontBackCamera(){
   try{
     if(currentMode==="environment"){
@@ -540,7 +533,6 @@ closeCameraBtn.addEventListener("click",closeCamera);
 captureCameraBtn.addEventListener("click",captureCamera);
 switchCameraBtn.addEventListener("click",toggleFrontBackCamera);
 
-// ระบบ Toggle เปิด/ปิดภาพตัวอย่าง
 toggleExampleBtn.addEventListener("click",()=>{
   const isHidden=cropExampleBox.style.display==="none" || !cropExampleBox.style.display;
   cropExampleBox.style.display=isHidden?"block":"none";
@@ -614,7 +606,6 @@ function closeCropModal(){
 
 cropCancelBtn.addEventListener("click",closeCropModal);
 
-// กดยืนยันครอบภาพ: แสดงสถานะทันที ป้องกันหน้าจอนิ่งค้าง
 cropConfirmBtn.addEventListener("click",()=>{
   if(!cropperInstance) return;
 
@@ -666,7 +657,6 @@ async function handleFileSelect(file){
   };
   reader.readAsDataURL(file);
 
-  // เปลี่ยนข้อความขณะรอ Gemini ประมวลผลตามคำขอ
   loadingText.innerText="กำลังสแกนและอ่านข้อมูล...";
   loadingOverlay.style.display="flex";
 
