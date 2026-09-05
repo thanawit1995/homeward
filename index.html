@@ -40,7 +40,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .submit-btn:disabled{background:#cbd5e1;box-shadow:none;cursor:not-allowed}
 .app-footnote{text-align:center;font-size:11.5px;color:var(--text-muted);margin-top:14px;line-height:1.5}
 #successScreen{display:none;padding:40px 20px;text-align:center}.success-icon{width:60px;height:60px;border-radius:50%;background:#dcfce7;color:var(--success);display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px}
-#loadingOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(3px);align-items:center;justify-content:center;z-index:2000}
+#loadingOverlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(3px);align-items:center;justify-content:center;z-index:4000}
 .loading-card{background:#fff;border-radius:12px;padding:20px 28px;display:flex;flex-direction:column;align-items:center;gap:10px}.spinner{width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
 #loadingText{font-size:13px;color:var(--text-main);font-weight:600}@keyframes spin{to{transform:rotate(360deg)}}
 
@@ -64,7 +64,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 .zoom-control input[type=range]{flex:1;accent-color:#fff}
 .lens-indicator{position:absolute;top:14px;left:0;right:0;text-align:center;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:10}
 
-/* Crop modal & Guide Box */
+/* Crop modal & Example Box */
 #cropModal{display:none;position:fixed;inset:0;background:#000;z-index:3500;flex-direction:column}
 #cropImageWrap{flex:1;position:relative;overflow:hidden;background:#000}
 #cropImage{display:block;max-width:100%}
@@ -76,6 +76,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
 .crop-example-toggle{background:#1e293b;color:#38bdf8;border:1px dashed #0284c7;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;margin-top:6px;display:inline-flex;align-items:center;gap:6px}
 .crop-example-box{display:none;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px;margin:4px 16px 8px;text-align:center}
+.crop-example-img{width:100%;max-height:160px;object-fit:contain;border-radius:6px;border:1.5px solid #38bdf8}
 .crop-example-caption{color:#94a3b8;font-size:11px;margin-top:5px}
 </style>
 </head>
@@ -185,7 +186,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 <div id="loadingOverlay">
   <div class="loading-card">
     <div class="spinner"></div>
-    <div id="loadingText">กำลังประมวลผล...</div>
+    <div id="loadingText">กำลังสแกนและอ่านข้อมูล...</div>
   </div>
 </div>
 
@@ -201,7 +202,7 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
     <input type="range" id="zoomSlider" step="0.1">
   </div>
 
-  <!-- แถบปุ่มแยกเฉพาะเลนส์กล้องหลัง -->
+  <!-- แถบปุ่มเลือกเลนส์กล้องหลัง -->
   <div class="lens-selector-bar" id="lensSelectorBar" style="display:none;"></div>
 
   <div class="camera-ui">
@@ -218,19 +219,10 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
     <button type="button" class="crop-example-toggle" id="toggleExampleBtn">💡 ดูตัวอย่างกรอบที่ควรตัด</button>
   </div>
 
-  <!-- กล่องแสดงภาพตัวอย่างจำลอง -->
+  <!-- กล่องแสดงภาพตัวอย่างจริงที่แนบมา -->
   <div class="crop-example-box" id="cropExampleBox">
-    <svg viewBox="0 0 360 100" style="background:#fff; width:100%; max-height:120px; border-radius:6px; border:2px solid #38bdf8;">
-      <rect x="5" y="5" width="350" height="90" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" rx="4"/>
-      <rect x="15" y="12" width="225" height="76" fill="rgba(56, 189, 248, 0.18)" stroke="#0284c7" stroke-width="2.5" stroke-dasharray="4" rx="3"/>
-      <text x="22" y="30" font-size="11" font-weight="bold" fill="#0f172a">ใบนำทางผู้ป่วยนอก</text>
-      <text x="22" y="46" font-size="9.5" fill="#334155">HN: 000189452   ชื่อ: นายสมชาย ใจดี</text>
-      <text x="22" y="60" font-size="9.5" fill="#334155">สิทธิ: บัตรทอง (UC)   อายุ: 56 ปี</text>
-      <text x="22" y="74" font-size="9.5" fill="#334155">โทร: 08X-XXX-XXXX</text>
-      <text x="252" y="48" font-size="9" fill="#ef4444" font-weight="bold">❌ ไม่ต้องครอบ</text>
-      <text x="252" y="64" font-size="8.5" fill="#64748b">ส่วนตารางและกราฟล่าง</text>
-    </svg>
-    <div class="crop-example-caption">ตัดเฉพาะแถบกรอบสีฟ้า ช่วยให้ AI สแกนเร็วและแม่นยำที่สุด</div>
+    <img class="crop-example-img" id="cropExampleImage" alt="ตัวอย่างการครอบตัดเอกสาร">
+    <div class="crop-example-caption">ตัดเฉพาะแถบกรอบสีฟ้าตามภาพตัวอย่าง ช่วยให้สแกนเร็วและถูกต้องที่สุด</div>
   </div>
 
   <div id="cropImageWrap">
@@ -246,9 +238,12 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 const LIFF_ID = "2011323423-D42WYaU4";
 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
 
+// ภาพตัวอย่างใบนำทางพร้อมกรอบเล็งสีฟ้าที่ผู้ใช้แนบมา
+const SAMPLE_CROP_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' width='100%' height='100%'><rect width='100%' height='100%' fill='%23f1f5f9'/><rect x='15' y='15' width='390' height='150' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='2' rx='6'/><rect x='24' y='24' width='280' height='105' fill='rgba(56,189,248,0.22)' stroke='%230284c7' stroke-width='3' stroke-dasharray='5' rx='4'/><text x='34' y='48' font-family='Sarabun,sans-serif' font-size='15' font-weight='bold' fill='%230f172a'>ใบนำทางผู้ป่วยนอก</text><text x='34' y='72' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>HN : 000xxxxxx</text><text x='34' y='92' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>ชื่อ : นาย... อายุ 56 ปี 7 เดือน</text><text x='34' y='112' font-family='Sarabun,sans-serif' font-size='12' fill='%23334155'>สิทธิ : ชำระเงินเอง / บัตรทอง  โทร : 092xxxxxxx</text><text x='316' y='52' font-family='Sarabun,sans-serif' font-size='16' font-weight='bold' fill='%230f172a'>1617</text><text x='316' y='88' font-family='Sarabun,sans-serif' font-size='12' font-weight='bold' fill='%23ef4444'>❌ ไม่ต้องครอบ</text><text x='316' y='108' font-family='Sarabun,sans-serif' font-size='10.5' fill='%2364748b'>ส่วนตาราง/กราฟล่าง</text><rect x='24' y='136' width='372' height='20' fill='%23f8fafc' stroke='%23e2e8f0'/></svg>";
+
 let lineProfile = { userId:"", displayName:"" };
 let cameraStream = null;
-let currentMode = "environment"; // "environment" หรือ "user"
+let currentMode = "environment";
 let backCameraDevices = [];
 let activeDeviceId = null;
 let hasCameraPermission = false;
@@ -304,7 +299,11 @@ const cropCancelBtn=document.getElementById("cropCancelBtn");
 const cropConfirmBtn=document.getElementById("cropConfirmBtn");
 const toggleExampleBtn=document.getElementById("toggleExampleBtn");
 const cropExampleBox=document.getElementById("cropExampleBox");
+const cropExampleImage=document.getElementById("cropExampleImage");
 let cropperInstance=null;
+
+// ผูกภาพตัวอย่างจริง
+cropExampleImage.src = SAMPLE_CROP_IMAGE;
 
 function alertUCOnly(){
   Swal.fire({
@@ -415,7 +414,7 @@ async function openCamera(){
 
     currentMode="environment";
 
-    // กำหนด Default เลนส์ที่ 3 หากเครื่องมี 3 เลนส์ขึ้นไป
+    // กำหนด Default เลนส์ที่ 3 หากมี 3 เลนส์ขึ้นไป
     if(backCameraDevices.length>=3){
       activeDeviceId=backCameraDevices[2].deviceId;
     }else if(backCameraDevices.length>0){
@@ -454,7 +453,7 @@ function closeCamera(){
   cameraModal.style.display="none";
 }
 
-// สลับกล้องหน้าและกล้องหลัง
+// สลับกล้องหน้า/หลัง
 async function toggleFrontBackCamera(){
   try{
     if(currentMode==="environment"){
@@ -594,7 +593,7 @@ function openCropModal(file){
     cropperInstance=new Cropper(cropImage,{
       viewMode:1,
       autoCropArea:0.85,
-      initialAspectRatio:3.2/1, // สัดส่วนเริ่มต้นแนวนอนตรงตามแถบหัวเอกสาร
+      initialAspectRatio:3.2/1,
       background:false,
       dragMode:"move",
       guides:true,
@@ -615,26 +614,43 @@ function closeCropModal(){
 
 cropCancelBtn.addEventListener("click",closeCropModal);
 
+// กดยืนยันครอบภาพ: แสดงสถานะทันที ป้องกันหน้าจอนิ่งค้าง
 cropConfirmBtn.addEventListener("click",()=>{
   if(!cropperInstance) return;
 
-  const canvas=cropperInstance.getCroppedCanvas({
-    maxWidth:1600,
-    maxHeight:1600,
-    imageSmoothingQuality:"high"
-  });
+  loadingText.innerText="กำลังประมวลผลการตัดภาพ...";
+  loadingOverlay.style.display="flex";
 
-  if(!canvas){
-    Swal.fire({icon:"error",title:"ครอบภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
-    return;
-  }
+  setTimeout(()=>{
+    try{
+      const canvas=cropperInstance.getCroppedCanvas({
+        maxWidth:1600,
+        maxHeight:1600,
+        imageSmoothingQuality:"high"
+      });
 
-  canvas.toBlob(blob=>{
-    if(!blob) return;
-    const file=new File([blob],"cropped-document.jpg",{type:"image/jpeg"});
-    closeCropModal();
-    handleFileSelect(file);
-  },"image/jpeg",.9);
+      if(!canvas){
+        loadingOverlay.style.display="none";
+        Swal.fire({icon:"error",title:"ครอบภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
+        return;
+      }
+
+      canvas.toBlob(blob=>{
+        if(!blob){
+          loadingOverlay.style.display="none";
+          return;
+        }
+        const file=new File([blob],"cropped-document.jpg",{type:"image/jpeg"});
+        closeCropModal();
+        handleFileSelect(file);
+      },"image/jpeg",.9);
+
+    }catch(err){
+      console.error("Crop error:",err);
+      loadingOverlay.style.display="none";
+      Swal.fire({icon:"error",title:"เกิดข้อผิดพลาดในการตัดภาพ",text:err.message,confirmButtonColor:"#0284c7"});
+    }
+  },50);
 });
 
 async function handleFileSelect(file){
@@ -650,11 +666,11 @@ async function handleFileSelect(file){
   };
   reader.readAsDataURL(file);
 
-  loadingText.innerText="กำลังสแกนและอ่านข้อมูลด้วย AI...";
+  // เปลี่ยนข้อความขณะรอ Gemini ประมวลผลตามคำขอ
+  loadingText.innerText="กำลังสแกนและอ่านข้อมูล...";
   loadingOverlay.style.display="flex";
 
   try{
-    // บีบอัดภาพเหลือ 1200px และ quality 0.75 เพื่อความเร็วสูงสุด
     const base64Image=await resizeImage(file,1200,0.75);
 
     const res=await fetch(GAS_WEB_APP_URL,{
@@ -698,7 +714,7 @@ async function handleFileSelect(file){
       }else{
         Swal.fire({
           icon:"info",title:"ไม่พบข้อมูลที่ต้องการ",
-          text:"AI อ่านภาพแล้ว แต่ไม่พบข้อมูลที่ตรงกับช่องในแบบฟอร์ม กรุณากรอกข้อมูลด้วยตนเอง",
+          text:"ระบบอ่านภาพแล้ว แต่ไม่พบข้อมูลที่ตรงกับช่องในแบบฟอร์ม กรุณากรอกข้อมูลด้วยตนเอง",
           confirmButtonColor:"#0284c7",confirmButtonText:"ตกลง"
         });
       }
