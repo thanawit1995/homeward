@@ -360,9 +360,8 @@ captureCameraBtn.addEventListener("click",captureCamera);
 switchCameraBtn.addEventListener("click",switchCamera);
 
 function openCropModal(file){
-  const reader=new FileReader();
-  reader.onload=e=>{
-    cropImage.src=e.target.result;
+  resizeImage(file,2400).then(dataUrl=>{
+    cropImage.src=dataUrl;
     cropModal.style.display="flex";
 
     if(cropperInstance) cropperInstance.destroy();
@@ -375,11 +374,9 @@ function openCropModal(file){
       responsive:true,
       toggleDragModeOnDblclick:false
     });
-  };
-  reader.onerror=()=>{
-    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง",confirmButtonColor:"#0284c7"});
-  };
-  reader.readAsDataURL(file);
+  }).catch(()=>{
+    Swal.fire({icon:"error",title:"เปิดภาพไม่สำเร็จ",text:"กรุณาลองใหม่อีกครั้ง หรือเลือกภาพอื่น",confirmButtonColor:"#0284c7"});
+  });
 }
 
 function closeCropModal(){
