@@ -132,7 +132,11 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
       <label class="scanner-label-btn" for="galleryFileInput">🖼️ เลือกจากอัลบั้ม</label>
     </div>
 
-    <input type="file" id="galleryFileInput" accept="image/*" style="display:none;">
+    <input type="file" id="galleryFileInput" accept="image/*,.heic,.heif" style="display:none;">
+
+    <div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:6px;">
+      รองรับไฟล์ JPG, PNG, HEIC/HEIF · ขนาดไม่เกิน 20MB
+    </div>
 
     <div id="previewContainer">
       <img id="imagePreview" alt="ภาพตัวอย่าง">
@@ -265,7 +269,10 @@ select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.o
 
 <script>
 const LIFF_ID = "2011323423-D42WYaU4";
-const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNHlrh8dUcVuCNrwGuiKG9dLIHPQfDxEth6DWQdXu3B5UD-6BP8__NVCgIIcXTXGM/exec";
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyZLkWWi5t1ir8P8tsdOL7lQg4qHF1yv4E9BFJBCx9GHa0p58EVc_lWbgDacDMa-geO/exec";
+
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 let lineProfile = { userId:"", displayName:"" };
 let cameraStream = null;
@@ -547,7 +554,33 @@ function isHeicFile(file){
   return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
 }
 
+function isAcceptedImageFile(file){
+  if(isHeicFile(file)) return true;
+  const type = (file.type || "").toLowerCase();
+  return type.startsWith("image/");
+}
+
 async function prepareFileForCrop(file){
+  if(!isAcceptedImageFile(file)){
+    Swal.fire({
+      icon:"warning", title:"ไฟล์ไม่รองรับ",
+      text:"กรุณาเลือกไฟล์รูปภาพชนิด JPG, PNG หรือ HEIC/HEIF เท่านั้น",
+      confirmButtonColor:"#0284c7"
+    });
+    galleryFileInput.value = "";
+    return;
+  }
+
+  if(file.size > MAX_FILE_SIZE_BYTES){
+    Swal.fire({
+      icon:"warning", title:"ไฟล์มีขนาดใหญ่เกินไป",
+      text:"กรุณาเลือกไฟล์ภาพขนาดไม่เกิน 20MB",
+      confirmButtonColor:"#0284c7"
+    });
+    galleryFileInput.value = "";
+    return;
+  }
+
   if(!isHeicFile(file)){
     openCropModal(file);
     return;
@@ -577,7 +610,9 @@ async function prepareFileForCrop(file){
 }
 
 function openCropModal(file){
-  resizeImage(file, 2000, 0.85).then(dataUrl => {
+  // ย่อภาพลงมาก่อนที่ 1600px (พอสำหรับอ่านแถบหัวเอกสาร) เพื่อให้ Cropper.js
+  // โหลด/วาดภาพเร็วขึ้นอย่างเห็นได้ชัดเมื่อเทียบกับภาพต้นฉบับที่อาจใหญ่ 4000px+
+  resizeImage(file, 1600, 0.85).then(dataUrl => {
     cropImage.src = dataUrl;
     cropModal.style.display = "flex";
     cropExampleBox.style.display = "none";
@@ -592,7 +627,12 @@ function openCropModal(file){
       dragMode: "move",
       guides: true,
       responsive: true,
-      toggleDragModeOnDblclick: false
+      toggleDragModeOnDblclick: false,
+      // resizeImage() ด้านบนวาดภาพผ่าน <canvas> ไปแล้วรอบหนึ่ง ซึ่งจะตัดข้อมูล
+      // EXIF ออกไปและ browser จัดการหมุนภาพให้ถูกทิศทางตั้งแต่ตอนวาดแล้ว
+      // จึงไม่จำเป็นต้องให้ Cropper.js มาอ่าน/แก้ EXIF orientation ซ้ำอีกรอบ
+      // ปิดไว้ช่วยให้ภาพขึ้นเร็วขึ้น
+      checkOrientation: false
     });
   }).catch(() => {
     Swal.fire({ icon: "error", title: "เปิดภาพไม่สำเร็จ", text: "กรุณาลองใหม่อีกครั้ง หรือเลือกภาพอื่น", confirmButtonColor: "#0284c7" });
@@ -614,12 +654,18 @@ cropConfirmBtn.addEventListener("click", () => {
   loadingText.innerText = "กำลังประมวลผลการตัดภาพ...";
   loadingOverlay.style.display = "flex";
 
-  setTimeout(() => {
+  // ใช้ double requestAnimationFrame แทน setTimeout(50) แบบเดา ๆ เดิม เพื่อรอแค่
+  // 1 เฟรมให้ browser วาด loading overlay ให้เสร็จก่อน แล้วค่อยเริ่มงานตัดภาพ
+  // (ซึ่งเป็นงาน synchronous ที่หนักและจะไปบล็อก UI) ทันทีที่พร้อม แทนที่จะรอ
+  // ระยะเวลาคงที่ 50ms ที่อาจนานเกินความจำเป็นบนเครื่องเร็ว ๆ
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     try{
       const canvas = cropperInstance.getCroppedCanvas({
         maxWidth: 1600,
         maxHeight: 1600,
-        imageSmoothingQuality: "high"
+        // "medium" ให้ผลลัพธ์คมชัดเพียงพอสำหรับงาน OCR/บันทึกเอกสาร แต่ประมวลผล
+        // เร็วกว่า "high" อย่างชัดเจน โดยเฉพาะบนมือถือรุ่นกลาง-ล่าง
+        imageSmoothingQuality: "medium"
       });
 
       if(!canvas){
@@ -643,7 +689,7 @@ cropConfirmBtn.addEventListener("click", () => {
       loadingOverlay.style.display = "none";
       Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาดในการตัดภาพ", text: err.message, confirmButtonColor: "#0284c7" });
     }
-  }, 50);
+  }));
 });
 
 async function handleFileSelect(file){
